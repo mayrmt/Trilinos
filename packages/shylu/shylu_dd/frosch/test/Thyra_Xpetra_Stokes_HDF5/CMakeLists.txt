@@ -4,7 +4,9 @@ TRIBITS_ADD_EXECUTABLE(
 )
 
 TRIBITS_COPY_FILES_TO_BINARY_DIR(ThyraXpetraPrecBlockCopyFiles
-    DEST_FILES ParameterList_TwoLevelBlockPreconditioner_GDSW.xml stokes.h5
+    DEST_FILES ParameterList_TwoLevelBlockPreconditioner_GDSW_muelu.xml
+               ParameterList_TwoLevelBlockPreconditioner_GDSW.xml
+               stokes.h5
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
     DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}
     EXEDEPS thyra_xpetra_stokes_hdf5

@@ -44,6 +44,16 @@
 
 #include <FROSch_SubdomainSolver_decl.hpp>
 
+#include <MueLu_Level.hpp>
+
+#include <Xpetra_BlockedCrsMatrix.hpp>
+#include <Xpetra_BlockedMap.hpp>
+#include <Xpetra_Map.hpp>
+#include <Xpetra_MapFactory.hpp>
+#include <Xpetra_MatrixUtils.hpp>
+
+#include <Teuchos_ArrayRCP.hpp>
+#include <Teuchos_ScalarTraits.hpp>
 
 namespace FROSch {
 
@@ -143,26 +153,66 @@ namespace FROSch {
             if (!ParameterList_->sublist("MueLu").get("NullSpace","Laplace").compare("Laplace")) {
                 nullspace = XMultiVectorFactory::Build(K_->getRowMap(), 1);
                 nullspace->putScalar(1.);
+
+                MueLuHierarchy_ = MueLuFactory_->CreateHierarchy();
+                MueLuHierarchy_->GetLevel(0)->Set("A",K_);
+                MueLuHierarchy_->GetLevel(0)->Set("Nullspace", nullspace);
             }
             else if (!ParameterList_->sublist("MueLu").get("NullSpace","Laplace").compare("SPP")) { // Hier matrix zu block matrix konvertieren
-                FROSCH_ASSERT(blockCoarseSize.size()==2,"Wrong size of blockCoarseSize for MueLu nullspace...");
-                unsigned dofs = (unsigned) ParameterList_->sublist("MueLu").get("Dimension",2);
-                nullspace = XMultiVectorFactory::Build(K_->getRowMap(), dofs+1);
-                //nullspace of upper part
-                for (unsigned j=0; j<nullspace->getLocalLength(); j++) {
-                    GO globIndex = nullspace->getMap()->getGlobalElement(j);
-                    if (globIndex<=(GO)(dofs*blockCoarseSize[0]-1)) {
-                        unsigned vecIndex = (globIndex)%dofs;
-                        nullspace->getDataNonConst(vecIndex)[j] = 1.;
-                    }
-                    else{
-                        nullspace->getDataNonConst(dofs)[j] = 1.;
-                    }
+                //                FROSCH_ASSERT(blockCoarseSize.size()==2,"Wrong size of blockCoarseSize for MueLu nullspace...");
+                unsigned nDofsPerNode = (unsigned) ParameterList_->sublist("MueLu").get("Dimension",2);
+
+                // Some typedefs etc.
+                using Teuchos::ArrayRCP;
+                using Teuchos::RCP;
+                using BlockedCrsMatrix = Xpetra::BlockedCrsMatrix<SC,LO,GO,NO>;
+                using Map = Xpetra::Map<LO,GO,NO>;
+                using MapExtractor = Xpetra::MapExtractor<SC,LO,GO,NO>;
+                using MapExtractorFactory = Xpetra::MapExtractorFactory<SC,LO,GO,NO>;
+                using Matrix = Xpetra::Matrix<SC,LO,GO,NO>;
+                using MultiVector = Xpetra::MultiVector<SC,LO,GO,NO>;
+                using MultiVectorFactory = Xpetra::MultiVectorFactory<SC,LO,GO,NO>;
+                using ST = Teuchos::ScalarTraits<SC>;
+
+                // Build blocked map
+                // Map for first and second block rows (i.e. velocity and pressure DOFs)
+                RCP<Map> mapOne; // = MapFactory::Build();
+                RCP<Map> mapTwo; // = MapFactory::Build();
+
+                std::vector<RCP<const Map> > maps;
+                maps.push_back(mapOne);
+                maps.push_back(mapTwo);
+                RCP<const MapExtractor> map_extractor = MapExtractorFactory::Build(K_->getRowMap(), maps);
+
+                // Split the matrix
+                RCP<BlockedCrsMatrix> bK = Xpetra::MatrixUtils<SC,LO,GO,NO>::SplitMatrix(*K_, map_extractor, map_extractor);
+
+                // Use the block matrix from now on
+                K_ = bK;
+
+                // Nullspace: we need a separate nullspace for each block
+                //--- Prepare null space for A11
+                RCP<MultiVector> nullspace11 = MultiVectorFactory::Build(mapOne, 2);
+                for (unsigned i = 0; i < nDofsPerNode - 1; ++i) {
+                  ArrayRCP<SC> nsValues = nullspace11->getDataNonConst(i);
+                  int numBlocks = nsValues.size() / (nDofsPerNode - 1);
+                  for (int j = 0; j < numBlocks; ++j) {
+                    nsValues[j*(nDofsPerNode - 1) + i] = ST::one();
+                  }
                 }
+
+                //--- Prepare null space for A22
+                RCP<MultiVector> nullspace22 = MultiVectorFactory::Build(mapTwo, 1);
+                nullspace22->putScalar(ST::one());
+
+                MueLuHierarchy_ = MueLuFactory_->CreateHierarchy();
+                RCP<MueLu::Level> Finest = MueLuHierarchy_->GetLevel(0);
+                Finest->setDefaultVerbLevel(Teuchos::VERB_HIGH);
+                Finest->Set("A", Teuchos::rcp_dynamic_cast<Matrix>(bK));
+                Finest->Set("Nullspace1",nullspace11);
+                Finest->Set("Nullspace2",nullspace22);
+                MueLuFactory_->SetupHierarchy(*MueLuHierarchy_);
             }
-            MueLuHierarchy_ = MueLuFactory_->CreateHierarchy(); // Das vor den if block
-            MueLuHierarchy_->GetLevel(0)->Set("A",K_); // Das in den if block
-            MueLuHierarchy_->GetLevel(0)->Set("Nullspace", nullspace);
 #else
             ThrowErrorMissingPackage("FROSch::SubdomainSolver", "MueLu");
 #endif
