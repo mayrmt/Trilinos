@@ -67,48 +67,6 @@ namespace FROSch {
     }
 
     template <class SC,class LO,class GO,class NO>
-    typename HarmonicCoarseOperator<SC,LO,GO,NO>::XMapPtr HarmonicCoarseOperator<SC,LO,GO,NO>::computeCoarseSpace(CoarseSpacePtr coarseSpace)
-    {
-        FROSCH_TIMER_START_LEVELID(computeCoarseSpaceTime,"HarmonicCoarseOperator::computeCoarseSpace");
-        XMapPtr repeatedMap = assembleSubdomainMap();
-
-        // Build local saddle point problem
-        ConstXMatrixPtr repeatedMatrix = ExtractLocalSubdomainMatrix(this->K_.getConst(),repeatedMap.getConst()); // AH 12/11/2018: Should this be in initalize?
-
-        // Extract submatrices
-        GOVec indicesGammaDofsAll(0);
-        GOVec indicesIDofsAll(0);
-        LO tmp = 0;
-
-        for (UN i=0; i<NumberOfBlocks_; i++) {
-            for (UN j=0; j<GammaDofs_[i].size(); j++) {
-                indicesGammaDofsAll.push_back(tmp+GammaDofs_[i][j]);
-            }
-            for (UN j=0; j<IDofs_[i].size(); j++) {
-                indicesIDofsAll.push_back(tmp+IDofs_[i][j]);
-            }
-            tmp += GammaDofs_[i].size()+IDofs_[i].size();
-        }
-
-        XMatrixPtr kII;
-        XMatrixPtr kIGamma;
-        XMatrixPtr kGammaI;
-        XMatrixPtr kGammaGamma;
-
-        BuildSubmatrices(repeatedMatrix,indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma);
-
-        // Assemble coarse map
-        XMapPtr coarseMap = assembleCoarseMap(); // AH 12/11/2018: Should this be in initalize?
-
-        // Build the saddle point harmonic extensions
-        XMultiVectorPtr localCoarseSpaceBasis = computeExtensions(repeatedMatrix->getRowMap(),coarseMap,indicesGammaDofsAll(),indicesIDofsAll(),kII,kIGamma);
-
-        coarseSpace->addSubspace(coarseMap,localCoarseSpaceBasis);
-
-        return repeatedMap;
-    }
-
-    template <class SC,class LO,class GO,class NO>
     typename HarmonicCoarseOperator<SC,LO,GO,NO>::XMapPtr HarmonicCoarseOperator<SC,LO,GO,NO>::assembleCoarseMap()
     {
         FROSCH_TIMER_START_LEVELID(assembleCoarseMapTime,"HarmonicCoarseOperator::assembleCoarseMap");
@@ -470,6 +428,76 @@ namespace FROSch {
         return mVPhi;
     }
 
+    template <class SC,class LO,class GO,class NO>
+    typename HarmonicCoarseOperator<SC,LO,GO,NO>::XMapPtr HarmonicCoarseOperator<SC,LO,GO,NO>::computeCoarseSpace(CoarseSpacePtr coarseSpace)
+    {
+        FROSCH_TIMER_START_LEVELID(computeCoarseSpaceTime,"HarmonicCoarseOperator::computeCoarseSpace");
+        XMapPtr repeatedMap = assembleSubdomainMap();
+
+        // Build local saddle point problem
+        ConstXMatrixPtr repeatedMatrix = FROSch::ExtractLocalSubdomainMatrix(this->K_.getConst(),repeatedMap.getConst()); // AH 12/11/2018: Should this be in initalize?
+
+        // Extract submatrices
+        GOVec indicesGammaDofsAll(0);
+        GOVec indicesIDofsAll(0);
+        LO tmp = 0;
+
+         for (UN i=0; i<NumberOfBlocks_; i++) {
+            for (UN j=0; j<GammaDofs_[i].size(); j++) {
+                indicesGammaDofsAll.push_back(tmp+GammaDofs_[i][j]);
+            }
+            for (UN j=0; j<IDofs_[i].size(); j++) {
+                indicesIDofsAll.push_back(tmp+IDofs_[i][j]);
+            }
+            tmp += GammaDofs_[i].size()+IDofs_[i].size();
+        }
+
+        XMatrixPtr kII;
+        XMatrixPtr kIGamma;
+        XMatrixPtr kGammaI;
+        XMatrixPtr kGammaGamma;
+
+        FROSch::BuildSubmatrices(repeatedMatrix,indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma);
+
+        // Assemble coarse map
+        XMapPtr coarseMap = assembleCoarseMap(); // AH 12/11/2018: Should this be in initalize?
+
+        // Build the saddle point harmonic extensions
+        XMultiVectorPtr localCoarseSpaceBasis = computeExtensions(repeatedMatrix->getRowMap(),coarseMap,indicesGammaDofsAll(),indicesIDofsAll(),kII,kIGamma);
+
+        coarseSpace->addSubspace(coarseMap,localCoarseSpaceBasis);
+
+        return repeatedMap;
+    }
+
+    template <class SC,class LO,class GO,class NO>
+    typename HarmonicCoarseOperator<SC,LO,GO,NO>::XMapPtrVecPtr HarmonicCoarseOperator<SC,LO,GO,NO>::computeCoarseBlockMaps(XMapPtr coarseSolveMap)
+    {
+        //std::cout << "TEST1\n"; Teuchos::RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)); coarseSolveMap->describe(*fancy,Teuchos::VERB_EXTREME);
+        XMapPtrVecPtr coarseBlockMaps(NumberOfBlocks_);
+
+        LO itmp = 0;
+        GO offset = 0;
+        for (UN i=0; i<NumberOfBlocks_; i++) {
+            XMapPtr tmpMap = this->InterfaceCoarseSpaces_[i]->getBasisMap();
+            offset += tmpMap->getMaxAllGlobalIndex();
+            if (tmpMap->lib()==Xpetra::UseEpetra || tmpMap->getGlobalNumElements()>0) {
+                offset += 1;
+            }
+
+             GOVec gIndices(0);
+            GO gID = coarseSolveMap->getGlobalElement(itmp);
+            while (gID >= 0 && gID < offset) {
+                //std::cout << this->MpiComm_->getRank() << " " << gID << " " << offset << std::endl;
+                gIndices.push_back(gID);
+                itmp++;
+                gID = coarseSolveMap->getGlobalElement(itmp);
+            }
+            coarseBlockMaps[i] = Xpetra::MapFactory<LO,GO,NO>::Build(tmpMap->lib(),-1,gIndices(),0,coarseSolveMap->getComm());
+            //coarseBlockMaps[i]->describe(*fancy,Teuchos::VERB_EXTREME);
+        }
+        return coarseBlockMaps;
+    }
 }
 
 #endif

@@ -62,8 +62,7 @@ namespace FROSch {
 
     template<class SC,class LO,class GO,class NO>
     SubdomainSolver<SC,LO,GO,NO>::SubdomainSolver(ConstXMatrixPtr k,
-                                                  ParameterListPtr parameterList,
-                                                  GOVecPtr blockCoarseSize) :
+                                                  ParameterListPtr parameterList) :
     K_ (k),
     ParameterList_ (parameterList),
     YTmp_ (),
@@ -147,7 +146,7 @@ namespace FROSch {
             }
         } else if (!ParameterList_->get("SolverType","Amesos").compare("MueLu")) {
 #ifdef HAVE_SHYLU_DDFROSCH_MUELU
-            MueLuFactory_ = rcp(new MueLu::ParameterListInterpreter<SC,LO,GO,NO>(parameterList->sublist("MueLu").sublist("MueLu Parameter")));
+            MueLuFactory_ = Teuchos::rcp(new MueLu::ParameterListInterpreter<SC,LO,GO,NO>(ParameterList_->sublist("MueLu").sublist("MueLu Parameter")));
             RCP<XMultiVector> nullspace;
 
             if (!ParameterList_->sublist("MueLu").get("NullSpace","Laplace").compare("Laplace")) {
@@ -176,13 +175,14 @@ namespace FROSch {
 
                 // Build blocked map
                 // Map for first and second block rows (i.e. velocity and pressure DOFs)
-                RCP<Map> mapOne; // = MapFactory::Build();
-                RCP<Map> mapTwo; // = MapFactory::Build();
+                XMapPtrVecPtr blockMaps = ParameterList_->get("Block Maps",blockMaps);
+                XMapPtr mapOne = blockMaps[0];
+                XMapPtr mapTwo = blockMaps[1];
 
                 std::vector<RCP<const Map> > maps;
                 maps.push_back(mapOne);
                 maps.push_back(mapTwo);
-                RCP<const MapExtractor> map_extractor = MapExtractorFactory::Build(K_->getRowMap(), maps);
+                RCP<const MapExtractor> map_extractor = MapExtractorFactory::Build(K_->getRowMap(),maps,false);
 
                 // Split the matrix
                 RCP<BlockedCrsMatrix> bK = Xpetra::MatrixUtils<SC,LO,GO,NO>::SplitMatrix(*K_, map_extractor, map_extractor);
@@ -195,8 +195,8 @@ namespace FROSch {
                 RCP<MultiVector> nullspace11 = MultiVectorFactory::Build(mapOne, 2);
                 for (unsigned i = 0; i < nDofsPerNode - 1; ++i) {
                   ArrayRCP<SC> nsValues = nullspace11->getDataNonConst(i);
-                  int numBlocks = nsValues.size() / (nDofsPerNode - 1);
-                  for (int j = 0; j < numBlocks; ++j) {
+                  unsigned numBlocks = nsValues.size() / (nDofsPerNode - 1);
+                  for (unsigned j = 0; j < numBlocks; ++j) {
                     nsValues[j*(nDofsPerNode - 1) + i] = ST::one();
                   }
                 }

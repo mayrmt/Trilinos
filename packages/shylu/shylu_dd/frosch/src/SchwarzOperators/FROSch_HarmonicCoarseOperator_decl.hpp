@@ -100,8 +100,6 @@ namespace FROSch {
 
         virtual int initialize() = 0;
 
-        XMapPtr computeCoarseSpace(CoarseSpacePtr coarseSpace);
-
     protected:
 
         XMapPtr assembleCoarseMap();
@@ -130,6 +128,10 @@ namespace FROSch {
                                                   GOVecView indicesIDofsAll,
                                                   XMatrixPtr kII,
                                                   XMatrixPtr kIGamma);
+
+        XMapPtr computeCoarseSpace(CoarseSpacePtr coarseSpace);
+
+        XMapPtrVecPtr computeCoarseBlockMaps(XMapPtr coarseSolveMap);
 
 
         SubdomainSolverPtr ExtensionSolver_;

@@ -109,10 +109,6 @@ namespace FROSch {
 
         virtual int compute();
 
-        virtual XMapPtr computeCoarseSpace(CoarseSpacePtr coarseSpace) = 0;
-
-        virtual int clearCoarseSpace();
-
         virtual void apply(const XMultiVector &x,
                            XMultiVector &y,
                            bool usePreconditionerOnly,
@@ -141,6 +137,12 @@ namespace FROSch {
         XMatrixPtr buildCoarseMatrix();
 
         virtual int buildCoarseSolveMap(XMatrixPtr &k0);
+
+        virtual XMapPtr computeCoarseSpace(CoarseSpacePtr coarseSpace) = 0;
+
+        virtual int clearCoarseSpace();
+
+        virtual XMapPtrVecPtr computeCoarseBlockMaps(XMapPtr coarseSolveMap) = 0;
 
 
         CommPtr CoarseSolveComm_;

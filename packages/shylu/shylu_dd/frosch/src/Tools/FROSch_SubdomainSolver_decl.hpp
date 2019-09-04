@@ -186,8 +186,7 @@ namespace FROSch {
         @param blockCoarseSize
         */
         SubdomainSolver(ConstXMatrixPtr k,
-                        ParameterListPtr parameterList,
-                        GOVecPtr blockCoarseSize=null);
+                        ParameterListPtr parameterList);
 
         //! Destructor
         virtual ~SubdomainSolver();

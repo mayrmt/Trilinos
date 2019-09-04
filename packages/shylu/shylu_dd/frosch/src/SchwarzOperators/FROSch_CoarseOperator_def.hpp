@@ -111,12 +111,6 @@ namespace FROSch {
         return 0;
     }
 
-    template <class SC,class LO,class GO,class NO>
-    int CoarseOperator<SC,LO,GO,NO>::clearCoarseSpace()
-    {
-        return CoarseSpace_->clearCoarseSpace();
-    }
-
     template<class SC,class LO,class GO,class NO>
     void CoarseOperator<SC,LO,GO,NO>::apply(const XMultiVector &x,
                                             XMultiVector &y,
@@ -218,6 +212,12 @@ namespace FROSch {
         // Build Map for the coarse solver
         buildCoarseSolveMap(k0);
 
+        // Set up coarse block maps
+        if (OnCoarseSolveComm_) {
+            XMapPtrVecPtr coarseBlockMaps = computeCoarseBlockMaps(CoarseSolveMap_);
+            this->ParameterList_->sublist("CoarseSolver").set("Block Maps",coarseBlockMaps);
+        }
+
         //------------------------------------------------------------------------------------------------------------------------
         // Communicate coarse matrix
         if (!DistributionList_->get("Type","linear").compare("linear")) {
@@ -304,12 +304,7 @@ namespace FROSch {
 
                 CoarseMatrix_->fillComplete(CoarseSolveMap_,CoarseSolveMap_); //RCP<FancyOStream> fancy = fancyOStream(rcpFromRef(std::cout)); CoarseMatrix_->describe(*fancy,VERB_EXTREME);
 
-                if (!this->ParameterList_->sublist("CoarseSolver").get("SolverType","Amesos").compare("MueLu")) {
-                    CoarseSolver_.reset(new SubdomainSolver<SC,LO,GO,NO>(CoarseMatrix_,sublist(this->ParameterList_,"CoarseSolver")));
-                }
-                else{
-                    CoarseSolver_.reset(new SubdomainSolver<SC,LO,GO,NO>(CoarseMatrix_,sublist(this->ParameterList_,"CoarseSolver")));
-                }
+                CoarseSolver_.reset(new SubdomainSolver<SC,LO,GO,NO>(CoarseMatrix_,sublist(this->ParameterList_,"CoarseSolver")));
 
                 CoarseSolver_->initialize();
 
@@ -478,6 +473,11 @@ namespace FROSch {
         return 0;
     }
 
+    template <class SC,class LO,class GO,class NO>
+    int CoarseOperator<SC,LO,GO,NO>::clearCoarseSpace()
+    {
+        return CoarseSpace_->clearCoarseSpace();
+    }
 }
 
 #endif
