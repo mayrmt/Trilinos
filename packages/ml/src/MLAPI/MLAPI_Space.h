@@ -201,8 +201,8 @@ public:
    */
   inline bool operator== (const Space& RHS) const
   {
-    if (IsLinear() != RHS.IsLinear())
-      return(false);
+    //if (IsLinear() != RHS.IsLinear())
+    //  return(false);
     if (GetNumGlobalElements() != RHS.GetNumGlobalElements())
       return(false);
     if (GetNumMyElements() != RHS.GetNumMyElements())
