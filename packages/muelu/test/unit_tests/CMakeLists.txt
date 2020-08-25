@@ -35,6 +35,7 @@ APPEND_SET(SOURCES
   Hierarchy.cpp
   IndexManager.cpp
   Level.cpp
+  MapTransferFactory.cpp
   MapWrapperFactory.cpp
   Memory.cpp
   MueLu_UnitTests.cpp
