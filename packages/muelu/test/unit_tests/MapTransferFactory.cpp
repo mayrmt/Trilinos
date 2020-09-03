@@ -154,6 +154,75 @@ namespace MueLuTests {
   /* This tests coarsens the row map of the fine level operator, so the result from the MapTransferFactory
    * needs to match the domain map of the prolongator.
    *
+   * Assume a 2D Poisson discretization.
+   */
+  TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL(MapTransferFactory, TransferFullMap2D, Scalar, LocalOrdinal, GlobalOrdinal, Node)
+  {
+#   include "MueLu_UseShortNames.hpp"
+    MUELU_TESTING_SET_OSTREAM;
+    MUELU_TESTING_LIMIT_SCOPE(Scalar,GlobalOrdinal,Node);
+
+    using test_factory = TestHelpers::TestFactory<SC, LO, GO, NO>;
+
+    out << "version: " << MueLu::Version() << std::endl;
+    out << "Test transfer of a map with the MapTransferFactory" << std::endl;
+
+    // Manual setup of a two-level hierarchy
+    Level fineLevel;
+    Level coarseLevel;
+    coarseLevel.SetPreviousLevel(Teuchos::rcpFromRef(fineLevel));
+    fineLevel.SetLevelID(0);
+    coarseLevel.SetLevelID(1);
+
+    // Create a dummy matrix needed to build a prolongator
+    const GO nx = 19;
+    const GO ny = 17;
+    RCP<Matrix> A = test_factory::Build2DPoisson(nx, ny);
+    fineLevel.Set("A", A);
+
+    // Use factory to create a dummy map to be used for the MapTransferFactory
+    const std::string mapName = "Dummy Map";
+    RCP<MapWrapperFactory> mapWrapperFactory = rcp(new MapWrapperFactory());
+    mapWrapperFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapWrapperFactory->SetParameter("map: object to wrap", Teuchos::ParameterEntry(A->getRowMap()));
+
+    // Register the map generating factory as factory in the coarse level
+    RCP<FactoryManager> factoryManager = rcp(new FactoryManager());
+    factoryManager->SetKokkosRefactor(false);
+    factoryManager->SetFactory(mapName, mapWrapperFactory);
+    fineLevel.SetFactoryManager(factoryManager);
+    coarseLevel.SetFactoryManager(factoryManager);
+
+    // Create a default TentativePFactory required by the MapTransferFactory
+    RCP<TentativePFactory> tentativePFact = rcp(new TentativePFactory());
+
+    // Create the MapTransferFactory (the one, we actually want to test here)
+    RCP<MapTransferFactory> mapTransferFactory = rcp(new MapTransferFactory());
+    mapTransferFactory->SetParameter("map: factory", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetFactory("P", tentativePFact);
+
+    // Request the necessary data on both levels
+    fineLevel.Request(mapName, mapWrapperFactory.get(), mapTransferFactory.get());
+    coarseLevel.Request(mapName, mapWrapperFactory.get());
+    coarseLevel.Request("P", tentativePFact.get(), mapTransferFactory.get());
+    coarseLevel.Request(*mapTransferFactory); // This calls DeclareInput() on mapTransferFactory
+
+    // Call Build() on all factories in the right order
+    mapWrapperFactory->Build(fineLevel);
+    tentativePFact->Build(fineLevel, coarseLevel);
+    mapTransferFactory->Build(fineLevel, coarseLevel);
+
+    // Get some quantities form levels to perform result checks
+    RCP<Matrix> Ptent = coarseLevel.Get<RCP<Matrix>>("P", tentativePFact.get());
+    RCP<const Map> coarsenedMap = coarseLevel.Get<RCP<const Map>>(mapName, mapWrapperFactory.get());
+
+    TEST_ASSERT(coarsenedMap->isSameAs(*Ptent->getDomainMap()));
+  } // TransferFullMap2D
+
+  /* This tests coarsens a subset of the row map of the fine level operator,
+   * so the result from the MapTransferFactory needs to match a subset of the domain map of the prolongator.
+   *
    * Assume a 1D Poisson discretization.
    */
   TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL(MapTransferFactory, TransferPartialMap1D, Scalar, LocalOrdinal, GlobalOrdinal, Node)
@@ -255,11 +324,117 @@ namespace MueLuTests {
     TEST_ASSERT(coarsenedMap->isSameAs(*mapForComparison));
   } // TransferPartialMap1D
 
+  /* This tests coarsens a subset of the row map of the fine level operator,
+   * so the result from the MapTransferFactory needs to match a subset of the domain map of the prolongator.
+   *
+   * Assume a 2D Poisson discretization.
+   */
+  TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL(MapTransferFactory, TransferPartialMap2D, Scalar, LocalOrdinal, GlobalOrdinal, Node)
+  {
+#   include "MueLu_UseShortNames.hpp"
+    MUELU_TESTING_SET_OSTREAM;
+    MUELU_TESTING_LIMIT_SCOPE(Scalar,GlobalOrdinal,Node);
+
+    using test_factory = TestHelpers::TestFactory<SC, LO, GO, NO>;
+
+    out << "version: " << MueLu::Version() << std::endl;
+    out << "Test transfer of a map with the MapTransferFactory" << std::endl;
+
+    RCP<const Teuchos::Comm<int> > comm = TestHelpers::Parameters::getDefaultComm();
+
+    // Manual setup of a two-level hierarchy
+    Level fineLevel;
+    Level coarseLevel;
+    coarseLevel.SetPreviousLevel(Teuchos::rcpFromRef(fineLevel));
+    fineLevel.SetLevelID(0);
+    coarseLevel.SetLevelID(1);
+
+    // Create a dummy matrix needed to build a prolongator
+    const GO nx = 49;
+    const GO ny = 43;
+    RCP<Matrix> A = test_factory::Build1DPoisson(4*nx);
+    fineLevel.Set("A", A);
+
+    // Extract a subset of A->getRowMap()'s GIDs to create the map to be transferred
+    ArrayView<const GO> allRowGIDs = A->getRowMap()->getNodeElementList();
+    Array<GO> myMapGIDs;
+    for (LO lid = 0; lid < Teuchos::as<LO>(nx); ++lid) {
+      if (lid % 3 == 0)
+        myMapGIDs.push_back(allRowGIDs[lid]);
+    }
+    GO gNumFineEntries = 0;
+    reduceAll(*comm, Teuchos::REDUCE_SUM, Teuchos::as<GO>(myMapGIDs.size()), Teuchos::outArg(gNumFineEntries));
+    RCP<const Map> mapWithHoles = MapFactory::Build(TestHelpers::Parameters::getLib(), gNumFineEntries, myMapGIDs(), Teuchos::ScalarTraits<GO>::zero(), comm);
+
+    // Use factory to create a dummy map to be used for the MapTransferFactory
+    const std::string mapName = "Dummy Map";
+    RCP<MapWrapperFactory> mapWrapperFactory = rcp(new MapWrapperFactory());
+    mapWrapperFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapWrapperFactory->SetParameter("map: object to wrap", Teuchos::ParameterEntry(mapWithHoles));
+
+    // Register the map generating factory as factory in the coarse level
+    RCP<FactoryManager> factoryManager = rcp(new FactoryManager());
+    factoryManager->SetKokkosRefactor(false);
+    factoryManager->SetFactory(mapName, mapWrapperFactory);
+    fineLevel.SetFactoryManager(factoryManager);
+    coarseLevel.SetFactoryManager(factoryManager);
+
+    // Create a default TentativePFactory required by the MapTransferFactory
+    RCP<TentativePFactory> tentativePFact = rcp(new TentativePFactory());
+
+    // Create the MapTransferFactory (the one, we actually want to test here)
+    RCP<MapTransferFactory> mapTransferFactory = rcp(new MapTransferFactory());
+    mapTransferFactory->SetParameter("map: factory", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetFactory("P", tentativePFact);
+
+    // Request the necessary data on both levels
+    fineLevel.Request(mapName, mapWrapperFactory.get(), mapTransferFactory.get());
+    coarseLevel.Request(mapName, mapWrapperFactory.get());
+    coarseLevel.Request("P", tentativePFact.get(), mapTransferFactory.get());
+    coarseLevel.Request(*mapTransferFactory); // This calls DeclareInput() on mapTransferFactory
+
+    // Call Build() on all factories in the right order
+    mapWrapperFactory->Build(fineLevel);
+    tentativePFact->Build(fineLevel, coarseLevel);
+    mapTransferFactory->Build(fineLevel, coarseLevel);
+
+    // Get some quantities form levels to perform result checks
+    RCP<Matrix> Ptent = coarseLevel.Get<RCP<Matrix>>("P", tentativePFact.get());
+    RCP<const Map> fineMap = fineLevel.Get<RCP<const Map>>(mapName, mapWrapperFactory.get()); // map to be transferred
+    RCP<const Map> coarsenedMap = coarseLevel.Get<RCP<const Map>>(mapName, mapWrapperFactory.get());
+
+    // Populate a fine level vector w/ ones according to fineMap
+    RCP<Vector> fullFineVec = VectorFactory::Build(Ptent->getRangeMap(), true);
+    RCP<Vector> partialFineVec = VectorFactory::Build(fineMap, true);
+    partialFineVec->putScalar(Teuchos::ScalarTraits<Scalar>::one());
+    RCP<Import> fineImporter = ImportFactory::Build(fineMap, fullFineVec->getMap());
+    fullFineVec->doImport(*partialFineVec, *fineImporter, Xpetra::INSERT);
+
+    // Restrict to coarse level manually
+    RCP<Vector> fullCoarseVec = VectorFactory::Build(Ptent->getDomainMap(), true);
+    Ptent->apply(*fullFineVec, *fullCoarseVec, Teuchos::TRANS);
+
+    // Reconstruct coarse map for result checking
+    ArrayRCP<const Scalar> coarseVecEntries = fullCoarseVec->getData(0);
+    Array<GO> myCoarseGIDs;
+    for (LO lid = 0; lid < coarseVecEntries.size(); ++lid) {
+      if (coarseVecEntries[lid] > Teuchos::ScalarTraits<Scalar>::zero())
+        myCoarseGIDs.push_back(Ptent->getDomainMap()->getGlobalElement(lid));
+    }
+    GO gNumCoarseEntries = 0;
+    reduceAll(*comm, Teuchos::REDUCE_SUM, Teuchos::as<GO>(myCoarseGIDs.size()), Teuchos::outArg(gNumCoarseEntries));
+    RCP<const Map> mapForComparison = MapFactory::Build(fineMap->lib(), gNumCoarseEntries, myCoarseGIDs, Teuchos::ScalarTraits<GO>::zero(), comm);
+
+    TEST_ASSERT(coarsenedMap->isSameAs(*mapForComparison));
+  } // TransferPartialMap2D
+
   #  define MUELU_ETI_GROUP(Scalar, LO, GO, Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,Constructor,Scalar,LO,GO,Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap1D,Scalar,LO,GO,Node) \
-      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferPartialMap1D,Scalar,LO,GO,Node)
-
+      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap2D,Scalar,LO,GO,Node) \
+      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferPartialMap1D,Scalar,LO,GO,Node) \
+      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferPartialMap2D,Scalar,LO,GO,Node)
 
 #include <MueLu_ETI_4arg.hpp>
 
