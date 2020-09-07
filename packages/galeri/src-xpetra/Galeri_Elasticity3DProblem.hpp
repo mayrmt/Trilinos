@@ -460,11 +460,13 @@ namespace Galeri {
                                         hy = TST::magnitude(stretch[1]),
                                         hz = TST::magnitude(stretch[2]);
 
-      GO myPID = this->Map_->getComm()->getRank();
-      GO const & negOne=-1;
-      GO mx = this->list_.get("mx", negOne), my = this->list_.get("my", negOne), mz = this->list_.get("mz", negOne);
+      const GO myPID = this->Map_->getComm()->getRank();
+      const GO one = Teuchos::ScalarTraits<GO>::one();
+      const GO mx = this->list_.get("mx", one);
+      const GO my = this->list_.get("my", one);
+      const GO mz = this->list_.get("mz", one);
 
-      const GO mxy = mx*my;
+      const GO mxy = mx * my;
 
       GO startx, starty, startz, endx, endy, endz;
       Utils::getSubdomainData(dims[0], mx, (myPID % mxy) % mx, startx, endx);
