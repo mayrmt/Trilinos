@@ -122,6 +122,19 @@ namespace MueLu {
 
   private:
 
+    /*!
+      @brief Get the max number of entries per row of P to be considered for map transfer
+
+      To exclude some nullspace vectors (e.g. rotations in 2D or 3D elasticity), when doing the map transfer,
+      this routine translates the user wish to a maximal number of entries per row of P to be considered during the map transfer.
+
+      \warning Rows of P are looped from left to right, so we rely on the usual ordering of the nullspace vectors (translations in x/y/z, then rotations around x,y,z).
+
+      @param[in] pL Parameter list with user-given configuration
+      @return Number of entries per row of the prolongator to be used for the map transfer
+    */
+    int GetLimitOfProlongatorColumns(const ParameterList& pL) const;
+
     //! Generating factory of input variable
     mutable RCP<const FactoryBase> mapFact_;
 

@@ -65,7 +65,9 @@ namespace MueLu {
 
     validParamList->setEntry("map: name", Teuchos::ParameterEntry(std::string("")));
     validParamList->setEntry("map: factory", Teuchos::ParameterEntry(std::string("null")));
-    validParamList->set< RCP<const FactoryBase> >("P", Teuchos::null, "Tentative prolongator factory");
+
+    validParamList->set<RCP<const FactoryBase>>("P", Teuchos::null, "Tentative prolongator factory");
+    validParamList->set<std::string>("nullspace vectors: limit to", "all", "Limit the number of nullspace vectors to be used for the map transfer (especially to exclude rotational vectors).");
 
     return validParamList;
   }
@@ -101,6 +103,7 @@ namespace MueLu {
 
     const ParameterList & pL = GetParameterList();
     const std::string mapName = pL.get<std::string>("map: name");
+    const int maxNumProlongCols = GetLimitOfProlongatorColumns(pL);
 
     // fetch map from level
     if (fineLevel.IsAvailable(mapName, mapFact_.get()) == false)
@@ -120,6 +123,7 @@ namespace MueLu {
     Array<GO > coarseMapGids;
     RCP<const Map> prolongColMap = Ptent->getColMap();
     GO gRowID = -1;
+    int numColEntries = 0;
     for (size_t row = 0; row < Ptent->getNodeNumRows(); ++row) {
       gRowID = Ptent->getRowMap()->getGlobalElement(row);
 
@@ -128,9 +132,12 @@ namespace MueLu {
         Teuchos::ArrayView<const SC> vals;
         Ptent->getLocalRowView(row, indices, vals);
 
-        // for (size_t i = 0; i < as<size_t>(indices.size() - limit); i++) {
-        for (size_t col = 0; col < as<size_t>(indices.size()); ++col) {
-          // mark all columns in Ptent(gRowID,*) to be coarse Dofs of next level transferMap
+        numColEntries = as<int>(indices.size());
+        if (maxNumProlongCols > 0)
+          numColEntries = std::min(numColEntries, maxNumProlongCols);
+
+        for (size_t col = 0; col < as<size_t>(numColEntries); ++col) {
+          // mark all (selected) columns in Ptent(gRowID,*) to be coarse Dofs of next level transferMap
           GO gcid = prolongColMap->getGlobalElement(indices[col]);
           coarseMapGids.push_back(gcid);
         }
@@ -146,6 +153,26 @@ namespace MueLu {
 
     // store map in coarse level
     coarseLevel.Set(mapName, coarseTransferMap, mapFact_.get());
+  }
+
+  template <class Scalar, class LocalOrdinal, class GlobalOrdinal, class Node>
+  int MapTransferFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>::GetLimitOfProlongatorColumns(const ParameterList& pL) const
+  {
+    const std::string useTheseNspVectors = pL.get<std::string>("nullspace vectors: limit to");
+
+    // Leave right away, if no limit is prescribed by the user
+    if (useTheseNspVectors == "all" || useTheseNspVectors == "")
+      return -1;
+
+    int maxNumProlongCols = -1;
+    if (useTheseNspVectors == "2D translations")
+      maxNumProlongCols = 1;
+    else if (useTheseNspVectors == "3D translations")
+      maxNumProlongCols = 2;
+    else
+      TEUCHOS_TEST_FOR_EXCEPTION(true, MueLu::Exceptions::InvalidArgument, "Unknown subset of nullspace vectors to be used, when performing a map transfer.")
+
+    return maxNumProlongCols;
   }
 
 } // namespace MueLu

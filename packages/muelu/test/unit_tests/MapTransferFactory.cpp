@@ -236,6 +236,8 @@ namespace MueLuTests {
     out << "version: " << MueLu::Version() << std::endl;
     out << "Test transfer of a map with the MapTransferFactory" << std::endl;
 
+    RCP<const Teuchos::Comm<int>> comm = Teuchos::DefaultComm<int>::getComm();
+
     // Manual setup of a two-level hierarchy
     Level fineLevel;
     Level coarseLevel;
@@ -307,6 +309,202 @@ namespace MueLuTests {
 
     TEST_ASSERT(coarsenedMap->isSameAs(*Ptent->getDomainMap()));
   } // TransferFullMap3DElasticity
+
+  /* This tests coarsens the row map of the fine level operator, so the result from the MapTransferFactory
+   * needs to match the domain map of the prolongator. This particular test targets the special case of
+   * limiting the number of columns from P to be used for the transfer (e.g. when excluding the rotations
+   * from the nullspace when creating the MapTransfer.)
+   *
+   * Assume a 3D elasticity discretization.
+   */
+  TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL(MapTransferFactory, TransferFullMap3DElasticityReducedP, Scalar, LocalOrdinal, GlobalOrdinal, Node)
+  {
+#   include "MueLu_UseShortNames.hpp"
+    MUELU_TESTING_SET_OSTREAM;
+    MUELU_TESTING_LIMIT_SCOPE(Scalar,GlobalOrdinal,Node);
+
+    using test_factory = TestHelpers::TestFactory<SC, LO, GO, NO>;
+
+    out << "version: " << MueLu::Version() << std::endl;
+    out << "Test transfer of a map with the MapTransferFactory" << std::endl;
+
+    RCP<const Teuchos::Comm<int> > comm = TestHelpers::Parameters::getDefaultComm();
+
+    // Manual setup of a two-level hierarchy
+    Level fineLevel;
+    Level coarseLevel;
+    coarseLevel.SetPreviousLevel(Teuchos::rcpFromRef(fineLevel));
+    fineLevel.SetLevelID(0);
+    coarseLevel.SetLevelID(1);
+
+    // Create a 3D elasticity matrix and its nullspace needed to build a prolongator
+    RCP<Matrix> A = Teuchos::null;
+    {
+      const GO nx = 10;
+      const GO ny = 10;
+      const GO nz = 5;
+      const int numDofsPerNode = 3; // 3D elasticity
+      const std::string matrixType = "Elasticity3D";
+
+      Teuchos::ParameterList galeriList;
+      galeriList.set("nx", nx);
+      galeriList.set("ny", ny);
+      galeriList.set("nz", nz);
+      galeriList.set("matrixType", matrixType);
+      RCP<const Map> nodeMap = Galeri::Xpetra::CreateMap<LO, GO, Node>(TestHelpers::Parameters::getLib(), "Cartesian3D", comm, galeriList);
+      RCP<const Map> dofMap = Xpetra::MapFactory<LO,GO,Node>::Build(nodeMap, numDofsPerNode);
+      RCP<Galeri::Xpetra::Problem<Map,CrsMatrixWrap,MultiVector> > Pr =
+          Galeri::Xpetra::BuildProblem<SC,LO,GO,Map,CrsMatrixWrap,MultiVector>(matrixType, dofMap, galeriList);
+      A = Pr->BuildMatrix();
+      RCP<MultiVector> nullspace = Pr->BuildNullspace();
+
+      TEST_ASSERT(!A.is_null());
+      TEST_ASSERT(nullspace->getNumVectors()==6);
+
+      fineLevel.Set("A", A);
+      fineLevel.Set("Nullspace", nullspace);
+    }
+
+    // Use factory to create a dummy map to be used for the MapTransferFactory
+    const std::string mapName = "Dummy Map";
+    RCP<MapWrapperFactory> mapWrapperFactory = rcp(new MapWrapperFactory());
+    mapWrapperFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapWrapperFactory->SetParameter("map: object to wrap", Teuchos::ParameterEntry(A->getRowMap()));
+
+    // Register the map generating factory as factory in the coarse level
+    RCP<FactoryManager> factoryManager = rcp(new FactoryManager());
+    factoryManager->SetKokkosRefactor(false);
+    factoryManager->SetFactory(mapName, mapWrapperFactory);
+    fineLevel.SetFactoryManager(factoryManager);
+    coarseLevel.SetFactoryManager(factoryManager);
+
+    // Create a default TentativePFactory required by the MapTransferFactory
+    RCP<TentativePFactory> tentativePFact = rcp(new TentativePFactory());
+    tentativePFact->SetParameter("Nullspace name", Teuchos::ParameterEntry(std::string("Nullspace")));
+
+    // Create the MapTransferFactory (the one, we actually want to test here)
+    RCP<MapTransferFactory> mapTransferFactory = rcp(new MapTransferFactory());
+    mapTransferFactory->SetParameter("map: factory", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetFactory("P", tentativePFact);
+    mapTransferFactory->SetParameter("nullspace vectors: limit to", Teuchos::ParameterEntry(std::string("3D translations")));
+
+    // Request the necessary data on both levels
+    fineLevel.Request(mapName, mapWrapperFactory.get(), mapTransferFactory.get());
+    coarseLevel.Request(mapName, mapWrapperFactory.get());
+    coarseLevel.Request("P", tentativePFact.get(), mapTransferFactory.get());
+    coarseLevel.Request(*mapTransferFactory); // This calls DeclareInput() on mapTransferFactory
+
+    // Call Build() on all factories in the right order
+    mapWrapperFactory->Build(fineLevel);
+    tentativePFact->Build(fineLevel, coarseLevel);
+    mapTransferFactory->Build(fineLevel, coarseLevel);
+
+    // Get some quantities form levels to perform result checks
+    RCP<Matrix> Ptent = coarseLevel.Get<RCP<Matrix>>("P", tentativePFact.get());
+    RCP<const Map> coarsenedMap = coarseLevel.Get<RCP<const Map>>(mapName, mapWrapperFactory.get());
+
+    TEST_EQUALITY(coarsenedMap->getMinGlobalIndex(), Ptent->getDomainMap()->getMinGlobalIndex());
+    TEST_EQUALITY(coarsenedMap->getMaxAllGlobalIndex(), Ptent->getDomainMap()->getMaxAllGlobalIndex() - 1);
+    TEST_EQUALITY(coarsenedMap->getGlobalNumElements(), Ptent->getDomainMap()->getGlobalNumElements() - 32);
+  } // TransferFullMap3DElasticityReducedP
+
+  /* This tests coarsens the row map of the fine level operator, so the result from the MapTransferFactory
+   * needs to match the domain map of the prolongator. This particular test targets the special case of
+   * limiting the number of columns from P to be used for the transfer (e.g. when excluding the rotations
+   * from the nullspace when creating the MapTransfer.)
+   *
+   * Assume a 2D elasticity discretization.
+   */
+  TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL(MapTransferFactory, TransferFullMap2DElasticityReducedP, Scalar, LocalOrdinal, GlobalOrdinal, Node)
+  {
+#   include "MueLu_UseShortNames.hpp"
+    MUELU_TESTING_SET_OSTREAM;
+    MUELU_TESTING_LIMIT_SCOPE(Scalar,GlobalOrdinal,Node);
+
+    using test_factory = TestHelpers::TestFactory<SC, LO, GO, NO>;
+
+    out << "version: " << MueLu::Version() << std::endl;
+    out << "Test transfer of a map with the MapTransferFactory" << std::endl;
+
+    RCP<const Teuchos::Comm<int> > comm = TestHelpers::Parameters::getDefaultComm();
+
+    // Manual setup of a two-level hierarchy
+    Level fineLevel;
+    Level coarseLevel;
+    coarseLevel.SetPreviousLevel(Teuchos::rcpFromRef(fineLevel));
+    fineLevel.SetLevelID(0);
+    coarseLevel.SetLevelID(1);
+
+    // Create a 3D elasticity matrix and its nullspace needed to build a prolongator
+    RCP<Matrix> A = Teuchos::null;
+    {
+      const GO nx = 10;
+      const GO ny = 5;
+      const int numDofsPerNode = 2; // 2D elasticity
+      const std::string matrixType = "Elasticity2D";
+
+      Teuchos::ParameterList galeriList;
+      galeriList.set("nx", nx);
+      galeriList.set("ny", ny);
+      galeriList.set("matrixType", matrixType);
+      RCP<const Map> nodeMap = Galeri::Xpetra::CreateMap<LO, GO, Node>(TestHelpers::Parameters::getLib(), "Cartesian2D", comm, galeriList);
+      RCP<const Map> dofMap = Xpetra::MapFactory<LO,GO,Node>::Build(nodeMap, numDofsPerNode);
+      RCP<Galeri::Xpetra::Problem<Map,CrsMatrixWrap,MultiVector> > Pr =
+          Galeri::Xpetra::BuildProblem<SC,LO,GO,Map,CrsMatrixWrap,MultiVector>(matrixType, dofMap, galeriList);
+      A = Pr->BuildMatrix();
+      RCP<MultiVector> nullspace = Pr->BuildNullspace();
+
+      TEST_ASSERT(!A.is_null());
+      TEST_ASSERT(nullspace->getNumVectors()==3);
+
+      fineLevel.Set("A", A);
+      fineLevel.Set("Nullspace", nullspace);
+    }
+
+    // Use factory to create a dummy map to be used for the MapTransferFactory
+    const std::string mapName = "Dummy Map";
+    RCP<MapWrapperFactory> mapWrapperFactory = rcp(new MapWrapperFactory());
+    mapWrapperFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapWrapperFactory->SetParameter("map: object to wrap", Teuchos::ParameterEntry(A->getRowMap()));
+
+    // Register the map generating factory as factory in the coarse level
+    RCP<FactoryManager> factoryManager = rcp(new FactoryManager());
+    factoryManager->SetKokkosRefactor(false);
+    factoryManager->SetFactory(mapName, mapWrapperFactory);
+    fineLevel.SetFactoryManager(factoryManager);
+    coarseLevel.SetFactoryManager(factoryManager);
+
+    // Create a default TentativePFactory required by the MapTransferFactory
+    RCP<TentativePFactory> tentativePFact = rcp(new TentativePFactory());
+    tentativePFact->SetParameter("Nullspace name", Teuchos::ParameterEntry(std::string("Nullspace")));
+
+    // Create the MapTransferFactory (the one, we actually want to test here)
+    RCP<MapTransferFactory> mapTransferFactory = rcp(new MapTransferFactory());
+    mapTransferFactory->SetParameter("map: factory", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetParameter("map: name", Teuchos::ParameterEntry(mapName));
+    mapTransferFactory->SetFactory("P", tentativePFact);
+    mapTransferFactory->SetParameter("nullspace vectors: limit to", Teuchos::ParameterEntry(std::string("2D translations")));
+
+    // Request the necessary data on both levels
+    fineLevel.Request(mapName, mapWrapperFactory.get(), mapTransferFactory.get());
+    coarseLevel.Request(mapName, mapWrapperFactory.get());
+    coarseLevel.Request("P", tentativePFact.get(), mapTransferFactory.get());
+    coarseLevel.Request(*mapTransferFactory); // This calls DeclareInput() on mapTransferFactory
+
+    // Call Build() on all factories in the right order
+    mapWrapperFactory->Build(fineLevel);
+    tentativePFact->Build(fineLevel, coarseLevel);
+    mapTransferFactory->Build(fineLevel, coarseLevel);
+
+    // Get some quantities form levels to perform result checks
+    RCP<Matrix> Ptent = coarseLevel.Get<RCP<Matrix>>("P", tentativePFact.get());
+    RCP<const Map> coarsenedMap = coarseLevel.Get<RCP<const Map>>(mapName, mapWrapperFactory.get());
+
+    TEST_EQUALITY(coarsenedMap->getMinGlobalIndex(), Ptent->getDomainMap()->getMinGlobalIndex());
+    TEST_EQUALITY(coarsenedMap->getMaxAllGlobalIndex(), Ptent->getDomainMap()->getMaxAllGlobalIndex() - 1);
+    TEST_EQUALITY(coarsenedMap->getGlobalNumElements(), Ptent->getDomainMap()->getGlobalNumElements() - 8);
+  } // TransferFullMap2DElasticityReducedP
 
   /* This tests coarsens a subset of the row map of the fine level operator,
    * so the result from the MapTransferFactory needs to match a subset of the domain map of the prolongator.
@@ -522,6 +720,8 @@ namespace MueLuTests {
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap1D,Scalar,LO,GO,Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap2D,Scalar,LO,GO,Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap3DElasticity,Scalar,LO,GO,Node) \
+      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap3DElasticityReducedP,Scalar,LO,GO,Node) \
+      TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferFullMap2DElasticityReducedP,Scalar,LO,GO,Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferPartialMap1D,Scalar,LO,GO,Node) \
       TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(MapTransferFactory,TransferPartialMap2D,Scalar,LO,GO,Node)
 
