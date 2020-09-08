@@ -167,6 +167,9 @@ typedef MueLu::LocalPermutationStrategy<Scalar,LocalOrdinal,GlobalOrdinal,Node> 
 #ifdef MUELU_MAPTRANSFERFACTORY_SHORT
 typedef MueLu::MapTransferFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node> MapTransferFactory;
 #endif
+#ifdef MUELU_MAPWRAPPERFACTORY_SHORT
+typedef MueLu::MapWrapperFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node> MapWrapperFactory;
+#endif
 #ifdef MUELU_MATRIXANALYSISFACTORY_SHORT
 typedef MueLu::MatrixAnalysisFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node> MatrixAnalysisFactory;
 #endif

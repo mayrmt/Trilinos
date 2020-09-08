@@ -104,6 +104,7 @@
 #include "MueLu_RepartitionInterface.hpp"
 #include "MueLu_RepartitionBlockDiagonalFactory.hpp"
 #include "MueLu_MapTransferFactory.hpp"
+#include "MueLu_MapWrapperFactory.hpp"
 #include "MueLu_MatrixAnalysisFactory.hpp"
 #include "MueLu_MultiVectorTransferFactory.hpp"
 #include "MueLu_NotayAggregationFactory.hpp"
@@ -257,6 +258,7 @@ namespace MueLu {
       if (factoryName == "InterfaceMappingTransferFactory")       return Build2<InterfaceMappingTransferFactory>       (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "LineDetectionFactory")                  return Build2<LineDetectionFactory>                  (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "MapTransferFactory")                    return Build2<MapTransferFactory>                    (paramList, factoryMapIn, factoryManagersIn);
+      if (factoryName == "MapWrapperFactory")                     return Build2<MapWrapperFactory>                     (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "MatrixAnalysisFactory")                 return Build2<MatrixAnalysisFactory>                 (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "MultiVectorTransferFactory")            return Build2<MultiVectorTransferFactory>            (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "NoFactory")                             return MueLu::NoFactory::getRCP();

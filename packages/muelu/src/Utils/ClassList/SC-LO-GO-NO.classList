@@ -53,6 +53,7 @@ IntrepidPCoarsenFactory - #ifdef HAVE_MUELU_INTREPID2
 LineDetectionFactory
 LocalPermutationStrategy
 MapTransferFactory
+MapWrapperFactory
 MatrixAnalysisFactory
 MergedBlockedMatrixFactory
 MergedSmoother
