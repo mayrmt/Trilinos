@@ -208,9 +208,10 @@ IF (TPL_ENABLE_MPI)
 ENDIF()
 
 IF (${PACKAGE_NAME}_ENABLE_Zoltan AND TPL_ENABLE_MPI)
-  APPEND_SET(SOURCES Zoltan.cpp
-              Repartition.cpp
-              #PermutedTransferFactory.cpp  # TODO CHECK ME!
+  APPEND_SET(SOURCES
+    #PermutedTransferFactory.cpp  # TODO CHECK ME!
+    Repartition.cpp
+    Zoltan.cpp
   )
 
   TRIBITS_COPY_FILES_TO_BINARY_DIR(MueLu_Repartition_cp
