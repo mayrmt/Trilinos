@@ -201,6 +201,12 @@ APPEND_SET(SOURCES_INTREPID2
 )
 ENDIF()
 
+IF (TPL_ENABLE_MPI)
+  APPEND_SET(SOURCES
+    RebalanceMapFactory.cpp
+  )
+ENDIF()
+
 IF (${PACKAGE_NAME}_ENABLE_Zoltan AND TPL_ENABLE_MPI)
   APPEND_SET(SOURCES Zoltan.cpp
               Repartition.cpp

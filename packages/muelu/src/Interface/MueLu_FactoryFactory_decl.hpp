@@ -114,6 +114,7 @@
 #include "MueLu_RebalanceBlockInterpolationFactory.hpp"
 #include "MueLu_RebalanceBlockRestrictionFactory.hpp"
 #include "MueLu_RebalanceBlockAcFactory.hpp"
+#include "MueLu_RebalanceMapFactory.hpp"
 #include "MueLu_RebalanceTransferFactory.hpp"
 #include "MueLu_RegionRFactory.hpp"
 #include "MueLu_RepartitionFactory.hpp"
@@ -272,6 +273,7 @@ namespace MueLu {
       if (factoryName == "RAPFactory")                            return BuildRAPFactory<RAPFactory>                   (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "RAPShiftFactory")                       return BuildRAPFactory<RAPShiftFactory>              (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "RebalanceAcFactory")                    return Build2<RebalanceAcFactory>                    (paramList, factoryMapIn, factoryManagersIn);
+      if (factoryName == "RebalanceMapFactory")                   return Build2<RebalanceMapFactory>                   (paramList, factoryMapIn, factoryManagersIn);
       if (factoryName == "RebalanceTransferFactory")              return Build2<RebalanceTransferFactory>              (paramList, factoryMapIn, factoryManagersIn);
 #ifdef HAVE_MUELU_KOKKOS_REFACTOR
       if (factoryName == "RegionRFactory")                        return Build2<RegionRFactory>                        (paramList, factoryMapIn, factoryManagersIn);
