@@ -5,6 +5,7 @@ DEST_FILES ParameterList_GDSWPreconditioner_ILU.xml
            ParameterList_RGDSWPreconditioner_Klu.xml
            ParameterList_TwoLevelPreconditioner_GDSW_ILU.xml
            ParameterList_TwoLevelPreconditioner_GDSW_Klu.xml
+           ParameterList_TwoLevelPreconditioner_GDSW_muelu.xml
            ParameterList_TwoLevelPreconditioner_IPOUHarmonic_GDSW_ILU.xml
            ParameterList_TwoLevelPreconditioner_IPOUHarmonic_GDSW_Klu.xml
            ParameterList_TwoLevelPreconditioner_IPOUHarmonic_GDSW_Klu_ML.xml

@@ -130,6 +130,21 @@ namespace FROSch {
                 nullspace = XMultiVectorFactory::Build(K_->getRowMap(), 1);
                 nullspace->putScalar(1.);
             }
+            else if (!ParameterList_->sublist("MueLu").get("NullSpace","Laplace").compare("Elasticity")) {
+                const int numDofsPerNode = ParameterList_->sublist("MueLu").get<int>("Dimension");
+                const int nspDimension = ParameterList_->sublist("MueLu").get<int>("NullSpace Dimension");
+                nullspace = XMultiVectorFactory::Build(K_->getRowMap(), nspDimension);
+                for (size_t dim = 0; dim < Teuchos::as<size_t>(nspDimension); ++dim)
+                {
+                  ArrayRCP<SC> nspVectorData = nullspace->getDataNonConst(dim);
+                  const LO myLength = nullspace->getLocalLength();
+                  for (LO dofLID = 0; dofLID < myLength; ++dofLID)
+                    nspVectorData[dofLID + dim] = 1.0;
+                }
+
+                nullspace->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)));
+                Teuchos::rcp_const_cast<XMatrix>(K_)->SetFixedBlockSize(numDofsPerNode);
+            }
             else if (!ParameterList_->sublist("MueLu").get("NullSpace","Laplace").compare("SPP")) { // Hier matrix zu block matrix konvertieren
                 FROSCH_ASSERT(blockCoarseSize.size()==2,"Wrong size of blockCoarseSize for MueLu nullspace...");
                 unsigned dofs = (unsigned) ParameterList_->sublist("MueLu").get("Dimension",2);

@@ -46,6 +46,16 @@ COMM mpi
 NUM_MPI_PROCS 8
 )
 
+IF(ShyLU_DDFROSch_ENABLE_MueLu)
+  TRIBITS_ADD_TEST(
+  thyra_xpetra_elasticity
+  NAME test_thyra_xpetra_elasticity_GDSWP_MUELU_DIM2_TPETRA
+  ARGS "--M=3 --DIM=2 --O=1 --PLIST=ParameterLists/ParameterList_TwoLevelPreconditioner_GDSW_muelu.xml --USETPETRA"
+  COMM mpi
+  NUM_MPI_PROCS 4
+  )
+ENDIF() # IF(ShyLU_DDFROSch_ENABLE_MueLu)
+
 #######################
 # RGDSWPreconditioner #
 #######################
