@@ -101,6 +101,9 @@
 #include <adapt/UniformRefinerPattern.hpp>
 #include <adapt/UniformRefiner.hpp>
 
+// STK
+// #include <stk/stk_mesh/base/Part.hpp>
+
 // Tpetra headers
 #include "Tpetra_Core.hpp"
 #include "Tpetra_Map.hpp"
@@ -124,11 +127,11 @@ int main(int argc, char *argv[]) {
   using GO = panzer::GlobalOrdinal;
   using NT = panzer::TpetraNodeType;
   using OP = Tpetra::Operator<ST,LO,GO,NT>;
-  using MV = Tpetra::MultiVector<ST,LO,GO,NT>; 
+  using MV = Tpetra::MultiVector<ST,LO,GO,NT>;
 
   // MueLu types
-  using Scalar = ST; 
-  using LocalOrdinal = LO; 
+  using Scalar = ST;
+  using LocalOrdinal = LO;
   using GlobalOrdinal = GO;
   using Node = NT;
 
@@ -166,7 +169,7 @@ int main(int argc, char *argv[]) {
     std::string pamgenFileName        = "cylinder.rtp";      clp.setOption("pamgen-mesh",           &pamgenFileName,          "Pamgen hex mesh filename");
     std::string xmlFileName           = "";                  clp.setOption("xml",                   &xmlFileName,             "MueLu parameters from an xml file");
     std::string yamlFileName          = "";                  clp.setOption("yaml",                  &yamlFileName,            "MueLu parameters from a yaml file");
-    int mesh_refinements              = 1;                   clp.setOption("mesh-refinements",      &mesh_refinements,        "Uniform mesh refinements");
+    int mesh_refinements              = 0;                   clp.setOption("mesh-refinements",      &mesh_refinements,        "Uniform mesh refinements");
     bool delete_parent_elements       = false;               clp.setOption("delete-parent-elements", "keep-parent-elements", &delete_parent_elements,"Save the parent elements in the perceptMesh");
 
     // Multigrid options
@@ -298,12 +301,25 @@ int main(int argc, char *argv[]) {
     // grab the number and names of mesh blocks
     std::vector<std::string> eBlocks;
     mesh->getElementBlockNames(eBlocks);
+    for (int blockId = 0; blockId < eBlocks.size(); ++blockId)
+      std::cout << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
     std::vector<bool> unstructured_eBlocks(eBlocks.size(), false);
+    std::cout << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
+    for (int blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
+      std::cout << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
     // TODO: set unstructured blocks based on some sort of input information; for example, using the Exodus ex_get_var* functions
 
     // grab the number and names of sidesets
     std::vector<std::string> sidesets;
     mesh->getSidesetNames(sidesets);
+    for (int sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
+      std::cout << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
+
+    // grab the number and names of nodesets
+    std::vector<std::string> nodesets;
+    mesh->getNodesetNames(nodesets);
+    for (int nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
+      std::cout << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
 
     // create a physics blocks parameter list
     Teuchos::RCP<Teuchos::ParameterList> ipb = Teuchos::parameterList("Physics Blocks");
@@ -421,13 +437,13 @@ int main(int argc, char *argv[]) {
     /********************************** CONSTRUCT REGIONS *****************************/
     /**********************************************************************************/
 
-    // The code in this section assumes that a region hierarchy can be established with Percept. 
-    // In the case where a region hierarchy is constructed from an exodus data input, for example, 
+    // The code in this section assumes that a region hierarchy can be established with Percept.
+    // In the case where a region hierarchy is constructed from an exodus data input, for example,
     // this implementation will need to be updated.
     // TODO: Assign MPI rank p to region p and collect element IDs. If this region is assigned via
-    // percept, reorder the element IDs lexicographically using the utility in the header. 
-    // Then collect mesh->identifier(node) for the nodes in lexicographic order for region p, 
-    // and put those in quasiRegionGIDs. Coordinates should be able to be extracted from the 
+    // percept, reorder the element IDs lexicographically using the utility in the header.
+    // Then collect mesh->identifier(node) for the nodes in lexicographic order for region p,
+    // and put those in quasiRegionGIDs. Coordinates should be able to be extracted from the
     // stk::mesh::entity node as well.
 
     tm = Teuchos::null;
@@ -516,6 +532,151 @@ int main(int argc, char *argv[]) {
           }
         }
       }
+    }
+    else
+    {
+      std::cout << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+
+      mesh->print(std::cout);
+
+      for (const auto& block_name : eBlocks)
+      {
+        const stk::mesh::Part* my_element_block = mesh->getElementBlockPart(block_name);
+
+        std::cout << "I just grabbed element block " << my_element_block->name()
+            << " with " //<< stk::mesh::nodeset_bulk_data << " "
+            << my_element_block->topology() << " entities."
+            << std::endl;
+
+      }
+
+      for (const auto& sideset_name : sidesets)
+      {
+        const stk::mesh::Part* my_sideset = mesh->getSideset(sideset_name);
+
+        // stk::mesh::print(std::cout, &nodeset_name, *my_nodeset);
+
+        std::cout << "I just grabbed sideset " << my_sideset->name()
+            << " with " //<< stk::mesh::nodeset_bulk_data << " "
+            << my_sideset->topology() << " entities."
+            << std::endl;
+      }
+
+      for (const auto& nodeset_name : nodesets)
+      {
+        const stk::mesh::Part* my_nodeset = mesh->getNodeset(nodeset_name);
+        // const stk::mesh::BulkData nodeset_bulk_data = my_nodeset->mesh_bulk_data();
+        // const stk::mesh::MetaData nodeset_meta_data = my_nodeset->mesh_meta_data();
+
+        // stk::mesh::print(std::cout, &nodeset_name, *my_nodeset);
+
+        std::cout << "I just grabbed nodeset " << my_nodeset->name()
+            << " with " //<< stk::mesh::nodeset_bulk_data << " "
+            << my_nodeset->topology() << " entities."
+            << std::endl;
+      }
+
+      /* Idea: Loop over all nodes and do mesh->containingBlockId(node) for each node to identify the owning block.
+      */
+
+      // std::vector<stk::mesh::Entity> all_nodes;
+      // const stk::mesh::BucketVector& all_buckets = mesh->getBulkData()->buckets(stk::topology::NODE_RANK);
+      // for (const auto& bucket : all_buckets)
+      // {
+      //   for (size_t idx = 0; idx < bucket->size(); ++idx)
+      //   {
+      //     stk::mesh::Entity node = (*bucket)[idx];
+      //     // std::cout << "This is node " << node << " in bucket " << bucket->bucket_id()
+      //     //     << " and in block '" << mesh->containingBlockId(node) << "'."
+      //     //     << std::endl;
+
+      //     all_nodes.push_back(node);
+      //   }
+      // }
+
+      std::vector<std::vector<stk::mesh::Entity>> nodes_in_block;
+      nodes_in_block.resize(eBlocks.size());
+      for (size_t block_id = 0; block_id < eBlocks.size(); ++block_id)
+      {
+        stk::mesh::Part* part = mesh->getElementBlockPart(eBlocks[block_id]);
+        const stk::mesh::BulkData& bulk_data = part->mesh_bulk_data();
+
+        for (auto it = bulk_data.begin_entities(stk::topology::NODE_RANK);
+            it < bulk_data.end_entities(stk::topology::NODE_RANK); ++it)
+        {
+          // std::cout << "This is node " << it->second << " in block " << eBlocks[block_id] << std::endl;
+          nodes_in_block[block_id].push_back(it->second);
+        }
+
+        std::cout << "Block " << eBlocks[block_id] << " contains "
+            << nodes_in_block[block_id].size() << " nodes."
+            << std::endl << std::endl;
+      }
+
+
+      std::vector<std::vector<stk::mesh::Entity>> nodes_in_nodeset;
+      nodes_in_nodeset.resize(nodesets.size());
+      for (size_t nodeset_id = 0; nodeset_id < nodesets.size(); ++nodeset_id)
+      {
+        auto& region_nodes = nodes_in_nodeset[nodeset_id];
+        stk::mesh::Part* part = mesh->getNodeset(nodesets[nodeset_id]);
+
+        mesh->getMyNodes(nodesets[nodeset_id], eBlocks[nodeset_id], region_nodes);
+
+        std::cout << "Nodeset " << nodesets[nodeset_id] << " contains "
+            << region_nodes.size() << " nodes:"
+            << std::endl << std::endl;
+
+        for (const auto& node : region_nodes)
+          std::cout << "  " << node << std::endl;
+
+        // std::sort(region_nodes.begin(), region_nodes.end());
+      }
+
+      std::vector<std::vector<stk::mesh::Entity>> interface_nodes;
+      const size_t num_nodesets = mesh->getNumNodesets();
+      interface_nodes.resize(num_nodesets * num_nodesets);
+      if (print_debug_info)
+        debug << "Vector slots in interface_nodes: " << interface_nodes.size() << std::endl;
+      for (size_t nodeset_id_one = 0; nodeset_id_one < num_nodesets; ++nodeset_id_one)
+      {
+        for (size_t nodeset_id_two = nodeset_id_one; nodeset_id_two < num_nodesets; ++nodeset_id_two)
+        {
+          if (nodeset_id_one != nodeset_id_two)
+          {
+            size_t target_vector_index = nodeset_id_one * num_nodesets + nodeset_id_two;
+
+            if (print_debug_info)
+            {
+              debug << "Region pair (" << nodesets[nodeset_id_one] << "/" << nodesets[nodeset_id_two]
+                  << "): attempting to access vector slot " << target_vector_index
+                  // << " with nodeset ids = (" << nodeset_id_one << "/" << nodeset_id_two << ")"
+                  << std::endl;
+            }
+
+            std::vector<stk::mesh::Entity> first(nodes_in_nodeset[nodeset_id_one]);
+            std::vector<stk::mesh::Entity> second(nodes_in_nodeset[nodeset_id_two]);
+            auto& region_pair_interface_nodes = interface_nodes[target_vector_index];
+
+            std::sort(first.begin(), first.end());
+            std::sort(second.begin(), second.end());
+            std::set_intersection(first.begin(), first.end(), second.begin(), second.end(), std::back_inserter(region_pair_interface_nodes));
+
+            if (print_debug_info)
+            {
+              debug << "The intersection of regions (" << nodesets[nodeset_id_one] << "/" << nodesets[nodeset_id_two]
+                  << ") has " << region_pair_interface_nodes.size() << " elements:\n";
+              for (const auto& node : region_pair_interface_nodes)
+                debug << " " << node;
+              debug << "\n" << std::endl;
+            }
+          }
+        }
+      }
+
+      std::cout << "About to exit(0) ..." << std::endl;
+      exit(0);
+
     }
 
     // Probably need to map indices of elements from the Percept indices back to the Panzer indices
@@ -771,7 +932,7 @@ int main(int argc, char *argv[]) {
       for(int idx = 0; idx < unstructuredRanks.size(); ++idx) {
         if(unstructuredRanks[idx] == myRank) {useUnstructured = true;}
       }
-      
+
       // Retrieve matrix parameters (they may have been changed on the command line)
       // [for instance, if we changed matrix type from 2D to 3D we need to update nz]
       //ParameterList galeriList = galeriParameters.GetParameterList();
@@ -812,7 +973,7 @@ int main(int argc, char *argv[]) {
       //  nodeMap = Galeri::Xpetra::CreateMap<LO, GO, Node>(xpetraParameters.GetLib(), "Cartesian3D", comm, galeriList);
       //  coordinates = Galeri::Xpetra::Utils::CreateCartesianCoordinates<double,LO,GO,Map,RealValuedMultiVector>("3D", nodeMap, galeriList);
       // }
-      
+
       dofMap = Xpetra::MapFactory<LO,GO,Node>::Build(nodeMap, numDofsPerNode);
       //A = tp_container->get_A(); // TODO: convert this
       //nullspace = Pr->BuildNullspace(); // TODO: get a nullspace
@@ -1341,7 +1502,7 @@ int main(int argc, char *argv[]) {
       return EXIT_SUCCESS;
       /**/
     }
-    
+
     /**********************************************************************************/
     /************************************ OUTPUT RESULTS ******************************/
     /**********************************************************************************/
