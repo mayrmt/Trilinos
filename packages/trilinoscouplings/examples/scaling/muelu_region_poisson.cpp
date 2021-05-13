@@ -534,83 +534,45 @@ int main(int argc, char *argv[]) {
     {
       std::cout << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
-      // std::vector<std::vector<stk::mesh::Entity>> nodes_in_block;
-      // nodes_in_block.resize(eBlocks.size());
-      // for (size_t block_id = 0; block_id < eBlocks.size(); ++block_id)
-      // {
-      //   stk::mesh::Part* part = mesh->getElementBlockPart(eBlocks[block_id]);
-      //   const stk::mesh::BulkData& bulk_data = part->mesh_bulk_data();
-
-      //   for (auto it = bulk_data.begin_entities(stk::topology::NODE_RANK);
-      //       it < bulk_data.end_entities(stk::topology::NODE_RANK); ++it)
-      //   {
-      //     // std::cout << "This is node " << it->second << " in block " << eBlocks[block_id] << std::endl;
-      //     nodes_in_block[block_id].push_back(it->second);
-      //   }
-
-      //   std::cout << "Block " << eBlocks[block_id] << " contains "
-      //       << nodes_in_block[block_id].size() << " nodes."
-      //       << std::endl << std::endl;
-      // }
-
-
-      // std::vector<std::vector<stk::mesh::Entity>> nodes_in_nodeset;
-      // nodes_in_nodeset.resize(nodesets.size());
-      // for (size_t nodeset_id = 0; nodeset_id < nodesets.size(); ++nodeset_id)
-      // {
-      //   auto& region_nodes = nodes_in_nodeset[nodeset_id];
-      //   stk::mesh::Part* part = mesh->getNodeset(nodesets[nodeset_id]);
-
-      //   mesh->getMyNodes(nodesets[nodeset_id], eBlocks[nodeset_id], region_nodes);
-
-      //   std::cout << "Nodeset " << nodesets[nodeset_id] << " contains "
-      //       << region_nodes.size() << " nodes:"
-      //       << std::endl << std::endl;
-
-      //   for (const auto& node : region_nodes)
-      //     std::cout << "  " << node << std::endl;
-
-      //   // std::sort(region_nodes.begin(), region_nodes.end());
-      // }
-
       /* Use STK's Selector to find nodes at region interfaces
 
       STK's concept of a Selector enables boolean operations on element blocks and, thus,
-      is used to find interface nodes, i.e. nodes that belong to two regions.
-
-      Data is stored in std::vector<stk::mesh::EntityVector> with indexing similar to a block matrix:
-      each "matrix block" represents the intersection between two regions specificied via the "row"
-      and "column" index.
+      is used to find interface nodes, i.e. nodes that belong to two regions. We find the
+      intersection of all possible region pairs to identify all interface nodes of a given region.
       */
-
-      const size_t num_regions = eBlocks.size();
+      const size_t num_regions = mesh->getNumElementBlocks();
+      Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
       std::vector<stk::mesh::EntityVector> interface_nodes;
-      interface_nodes.resize(num_regions * num_regions);
-      Teuchos::RCP<const stk::mesh::BulkData> bulkData = mesh->getBulkData();
-      for (size_t region_id_one = 0; region_id_one < num_regions; ++region_id_one)
+      interface_nodes.resize(num_regions);
+      for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
       {
-        for (size_t region_id_two = region_id_one + 1; region_id_two < num_regions; ++region_id_two)
+        stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[my_region_id]);
+        stk::mesh::EntityVector& my_interface_nodes = interface_nodes[my_region_id];
+
+        for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
         {
-          // if (region_id_one != region_id_two)
+          if (my_region_id != other_region_id)
           {
-            const stk::mesh::Part* region_1 = mesh->getElementBlockPart(eBlocks[region_id_one]);
-            const stk::mesh::Part* region_2 = mesh->getElementBlockPart(eBlocks[region_id_two]);
-            const stk::mesh::Selector blockIntersection = *region_1 & *region_2;
+            // Grab another region and define the intersection operation
+            stk::mesh::Part* other_region = mesh->getElementBlockPart(eBlocks[other_region_id]);
+            stk::mesh::Selector block_intersection = *my_region & *other_region;
 
-            const size_t target_vector_index = region_id_one * num_regions + region_id_two;
-            stk::mesh::EntityVector& nodesBetweenBlocks = interface_nodes[target_vector_index];
-
-            bulkData->get_entities(stk::topology::NODE_RANK, blockIntersection, nodesBetweenBlocks);
-
-            if (print_debug_info)
-            {
-              debug << "The intersection of regions (" << eBlocks[region_id_one] << "/" << eBlocks[region_id_two]
-                  << ") has " << nodesBetweenBlocks.size() << " elements:\n";
-              for (const auto& node : nodesBetweenBlocks)
-                debug << " " << node;
-              debug << "\n" << std::endl;
-            }
+            // Compute intersection and add to list of my interface nodes
+            stk::mesh::EntityVector current_interface_nodes;
+            bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
+            my_interface_nodes.insert(my_interface_nodes.end(), current_interface_nodes.begin(), current_interface_nodes.end());
           }
+        }
+      }
+
+      if (print_debug_info)
+      {
+        for (size_t region_id_one = 0; region_id_one < num_regions; ++region_id_one)
+        {
+          debug << "Interface nodes of region " << eBlocks[region_id_one] << ":\n";
+          for (const auto& node : interface_nodes[region_id_one])
+            debug << "  " << node;
+          debug << "\n" << std::endl;
         }
       }
 
