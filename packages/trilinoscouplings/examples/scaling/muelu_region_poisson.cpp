@@ -576,8 +576,20 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      std::cout << "About to exit(0) ..." << std::endl;
-      exit(0);
+      // for (const auto& interface : interface_nodes)
+      // {
+      //   for (const auto& node : interface)
+      //   {
+      //     const stk::mesh::PartVector& sharing_parts = bulk_data->bucket(node).supersets();
+      //     for (const auto& part : sharing_parts)
+      //     {
+      //       // stk::mesh::print(std::cout, "", *part);
+      //     }
+      //   }
+      // }
+
+      // std::cout << "About to exit(0) ..." << std::endl;
+      // exit(0);
 
     }
 
@@ -613,7 +625,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if(myRank == 0)
+    if (myRank == 0 && mesh_refinements)
       perceptrenumbertest(mesh_refinements);
 
     // next we need to get the LIDs
