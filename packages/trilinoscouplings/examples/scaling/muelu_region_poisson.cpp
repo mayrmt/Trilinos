@@ -532,7 +532,44 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-      std::cout << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+      std::cout << "p=" << myRank << "| Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+
+      /* First we extract some basic data */
+      Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
+      Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
+      const size_t num_regions = mesh->getNumElementBlocks();
+
+      /* Redistribute the mesh so that each element block/region is assigned to a MPI rank */
+      const size_t numProcs = stk::parallel_machine_size(*(comm->getRawMpiComm()));
+      if(num_regions != numProcs) {
+	std::cout << "numProcs=" << numProcs << " and num_regions=" << num_regions << std::endl;
+	throw("Currently when using exodus files, the number of element blocks, a.k.a. regions, must match the number of MPI ranks.");
+      }
+
+      stk::mesh::EntityProcVec elemsToProcs;
+      // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
+      for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
+	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
+	// std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
+	for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
+	  stk::mesh::Bucket & elemBucket = **it;
+	  const unsigned numElems = elemBucket.size();
+	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
+	    elemsToProcs.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], regionIdx));
+	  }
+	}
+      }
+      bulk_data->change_entity_owner(elemsToProcs);
+
+      std::cout << "p=" << myRank << "| The mesh has been redistributed!" << std::endl;
+      // for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
+      // 	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+      // 	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+      // 	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
+      // 	std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
+      // }
 
       /* Use STK's Selector to find nodes at region interfaces
 
@@ -540,8 +577,6 @@ int main(int argc, char *argv[]) {
       is used to find interface nodes, i.e. nodes that belong to two regions. We find the
       intersection of all possible region pairs to identify all interface nodes of a given region.
       */
-      const size_t num_regions = mesh->getNumElementBlocks();
-      Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
       std::vector<stk::mesh::EntityVector> interface_nodes;
       interface_nodes.resize(num_regions);
       for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
@@ -591,7 +626,8 @@ int main(int argc, char *argv[]) {
       // std::cout << "About to exit(0) ..." << std::endl;
       // exit(0);
 
-    }
+    } // if(mesh_refinements>0 && !delete_parent_elements)
+    std::cout << "Done working on mesh refinement and blocks detection" << std::endl;
 
     // Probably need to map indices of elements from the Percept indices back to the Panzer indices
 
