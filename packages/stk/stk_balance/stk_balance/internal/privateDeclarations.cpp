@@ -1244,7 +1244,7 @@ void fill_decomp_using_blocks(stk::mesh::BulkData & stkMeshBulkData,
   stk::mesh::PartVector blocksInMesh;
   stk::tools::impl::get_all_blocks_in_mesh(stkMeshBulkData, blocksInMesh);
   const size_t numBlocks = blocksInMesh.size();
-  if(numBlocks != stkMeshBulkData.parallel_size()) {
+  if(static_cast<int>(numBlocks) != stkMeshBulkData.parallel_size()) {
     ThrowErrorMsg("decomp-method=block require num MPI rank == num Blocks: " << stkMeshBulkData.parallel_size() << "!=" << numBlocks);
   }
 
