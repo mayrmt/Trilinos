@@ -539,31 +539,31 @@ int main(int argc, char *argv[]) {
       Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
       const size_t num_regions = mesh->getNumElementBlocks();
 
-      /* Redistribute the mesh so that each element block/region is assigned to a MPI rank */
-      const size_t numProcs = stk::parallel_machine_size(*(comm->getRawMpiComm()));
-      if(num_regions != numProcs) {
-	std::cout << "numProcs=" << numProcs << " and num_regions=" << num_regions << std::endl;
-	throw("Currently when using exodus files, the number of element blocks, a.k.a. regions, must match the number of MPI ranks.");
-      }
+      // /* Redistribute the mesh so that each element block/region is assigned to a MPI rank */
+      // const size_t numProcs = stk::parallel_machine_size(*(comm->getRawMpiComm()));
+      // if(num_regions != numProcs) {
+      // 	std::cout << "numProcs=" << numProcs << " and num_regions=" << num_regions << std::endl;
+      // 	throw("Currently when using exodus files, the number of element blocks, a.k.a. regions, must match the number of MPI ranks.");
+      // }
 
-      stk::mesh::EntityProcVec elemsToProcs;
-      // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
-      for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
-	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
-	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
-	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
-	// std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
-	for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
-	  stk::mesh::Bucket & elemBucket = **it;
-	  const unsigned numElems = elemBucket.size();
-	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
-	    elemsToProcs.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], regionIdx));
-	  }
-	}
-      }
-      bulk_data->change_entity_owner(elemsToProcs);
+      // stk::mesh::EntityProcVec elemsToProcs;
+      // // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
+      // for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
+      // 	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+      // 	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+      // 	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
+      // 	// std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
+      // 	for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
+      // 	  stk::mesh::Bucket & elemBucket = **it;
+      // 	  const unsigned numElems = elemBucket.size();
+      // 	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
+      // 	    elemsToProcs.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], regionIdx));
+      // 	  }
+      // 	}
+      // }
+      // bulk_data->change_entity_owner(elemsToProcs);
 
-      std::cout << "p=" << myRank << "| The mesh has been redistributed!" << std::endl;
+      // std::cout << "p=" << myRank << "| The mesh has been redistributed!" << std::endl;
       // for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
       // 	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
       // 	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
