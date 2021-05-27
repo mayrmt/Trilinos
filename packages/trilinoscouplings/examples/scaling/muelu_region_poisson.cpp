@@ -112,6 +112,7 @@
 // Most of which is taken from PoissonExample in Panzer_STK
 #include "muelu_region_poisson.hpp"
 
+#include "muelu_region_exodus_utils.hpp"
 
 int main(int argc, char *argv[]) {
 
@@ -514,6 +515,7 @@ int main(int argc, char *argv[]) {
               for (unsigned i_node = 0; i_node < elem_nodes.size(); i_node++)
               {
                 stk::mesh::Entity node = elem_nodes[i_node].entity();
+                // push_back(mesh->id(node))
                 if(print_debug_info)
                   debug << "Stk Node = " << node << std::endl;
 
@@ -611,7 +613,6 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      // for (const auto& interface : interface_nodes)
       // {
       //   for (const auto& node : interface)
       //   {
@@ -636,8 +637,8 @@ int main(int argc, char *argv[]) {
     Kokkos::DynRankView<double,PHX::Device> vertices;
     std::vector<std::size_t> localIds;
 
-    panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[0],localIds,vertices);
-    //mesh->getElementVertices(elements,0,vertices);
+    panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[myRank],localIds,vertices);
+    //mesh->getElementVertices(elements,myRank,vertices);
 
     if(dump_element_vertices)
     {
@@ -664,7 +665,30 @@ int main(int argc, char *argv[]) {
     if (myRank == 0 && mesh_refinements)
       perceptrenumbertest(mesh_refinements);
 
-    // next we need to get the LIDs
+    // next we need to get the LIDs in order
+    std::cout<<"p="<<myRank<<" | Get Elements in order."<<std::endl;
+    auto dofLID = dofManager->getLIDs();
+    const int numElm = dofLID.extent(0);
+    Teuchos::Array<LO> elemRemap(numElm,-1);
+    Teuchos::Array<LO> IJK(3,1);// IJK counts for elements (one less than nodes).
+
+    reorderLexElem(vertices, elemRemap, IJK);
+    std::cout<<"p="<<myRank<<" | "<<elemRemap<<std::endl;
+
+    LO numElmInRegion = (IJK[0]+1)*(IJK[1]+1)*(IJK[2]+1);
+
+    Teuchos::Array<LO> lidRemap = grabLIDsGIDsLexOrder(IJK, dofLID, dofManager, numElmInRegion );
+
+    std::cout<<"p="<<myRank<<" | "<<lidRemap<<std::endl;
+    std::cout<<"p="<<myRank<<" | "<<IJK<<std::endl;
+
+    //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
+    //tp_object_factory->getMap()->describe(debug,Teuchos::VERB_EXTREME);
+
+    std::cout << "About to exit(0) ..." << std::endl;
+    exit(0);
+
+
 
     // Setup response library for checking the error in this manufactured solution
     ////////////////////////////////////////////////////////////////////////
@@ -777,7 +801,6 @@ int main(int argc, char *argv[]) {
     ae_tm.getAsObject<panzer::Traits::Jacobian>()->evaluate(input);
 
 
-
     /**********************************************************************************/
     /************************************ LINEAR SOLVER *******************************/
     /**********************************************************************************/
@@ -789,6 +812,7 @@ int main(int argc, char *argv[]) {
     // convert generic linear object container to tpetra container
     Teuchos::RCP<panzer::TpetraLinearObjContainer<ST,LO,GO> > tp_container = Teuchos::rcp_dynamic_cast<panzer::TpetraLinearObjContainer<ST,LO,GO> >(container);
 
+    
     Teuchos::RCP<MueLu::TpetraOperator<ST,LO,GO,NT> > mueLuPreconditioner;
 
     if(xmlFileName.size())
