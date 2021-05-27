@@ -777,14 +777,14 @@ int main(int argc, char *argv[]) {
     Teuchos::Array<LO> IJK(3,1);// IJK counts for elements (one less than nodes).
 
     reorderLexElem(vertices, elemRemap, IJK);
-    std::cout<<"p="<<myRank<<" | "<<elemRemap<<std::endl;
+    //std::cout<<"p="<<myRank<<" | "<<elemRemap<<std::endl;
 
     LO numElmInRegion = (IJK[0]+1)*(IJK[1]+1)*(IJK[2]+1);
 
     Teuchos::Array<LO> lidRemap = grabLIDsGIDsLexOrder(IJK, dofLID, dofManager, numElmInRegion );
 
-    std::cout<<"p="<<myRank<<" | "<<lidRemap<<std::endl;
-    std::cout<<"p="<<myRank<<" | "<<IJK<<std::endl;
+    //std::cout<<"p="<<myRank<<" | "<<lidRemap<<std::endl;
+    //std::cout<<"p="<<myRank<<" | "<<IJK<<std::endl;
 
     //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
     //tp_object_factory->getMap()->describe(debug,Teuchos::VERB_EXTREME);
