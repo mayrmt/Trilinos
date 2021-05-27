@@ -300,24 +300,24 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> eBlocks;
     mesh->getElementBlockNames(eBlocks);
     for (int blockId = 0; blockId < eBlocks.size(); ++blockId)
-      std::cout << "p=" << myRank << " | eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
+      out << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
     std::vector<bool> unstructured_eBlocks(eBlocks.size(), false);
-    std::cout << "p=" << myRank << " | After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
+    out << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
     for (int blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
-      std::cout << "p=" << myRank << " | unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
+      out << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
     // TODO: set unstructured blocks based on some sort of input information; for example, using the Exodus ex_get_var* functions
 
     // grab the number and names of sidesets
     std::vector<std::string> sidesets;
     mesh->getSidesetNames(sidesets);
     for (int sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
-      std::cout << "p=" << myRank << " | sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
+      out << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
 
     // grab the number and names of nodesets
     std::vector<std::string> nodesets;
     mesh->getNodesetNames(nodesets);
     for (int nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
-      std::cout << "p=" << myRank << " | nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
+      out << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
 
     // create a physics blocks parameter list
     Teuchos::RCP<Teuchos::ParameterList> ipb = Teuchos::parameterList("Physics Blocks");
@@ -624,6 +624,7 @@ int main(int argc, char *argv[]) {
       //   }
       // }
 
+      // comm->barrier();
       // std::cout << "About to exit(0) ..." << std::endl;
       // exit(0);
 
