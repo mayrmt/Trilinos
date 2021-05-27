@@ -32,6 +32,7 @@
 
 #include "stk_mesh/base/FieldParallel.hpp"
 #include "stk_tools/mesh_tools/CustomAura.hpp"
+#include "stk_tools/mesh_tools/DisconnectUtils.hpp"
 #include <stk_mesh/base/SideSetEntry.hpp>
 #include <stk_mesh/base/SkinBoundary.hpp>
 #include <stk_mesh/base/SkinMeshUtil.hpp>
@@ -1237,6 +1238,30 @@ void fill_decomp_using_parmetis(stk::mesh::BulkData & stkMeshBulkData,
 #endif
 }
 
+void fill_decomp_using_blocks(stk::mesh::BulkData & stkMeshBulkData,
+			      stk::mesh::EntityProcVec & decomp) {
+
+  stk::mesh::PartVector blocksInMesh;
+  stk::tools::impl::get_all_blocks_in_mesh(stkMeshBulkData, blocksInMesh);
+  const size_t numBlocks = blocksInMesh.size();
+  if(static_cast<int>(numBlocks) != stkMeshBulkData.parallel_size()) {
+    ThrowErrorMsg("decomp-method=block require num MPI rank == num Blocks: " << stkMeshBulkData.parallel_size() << "!=" << numBlocks);
+  }
+
+  for(size_t blockIdx = 0; blockIdx < numBlocks; ++blockIdx) {
+    stk::mesh::Selector localPart = *blocksInMesh[blockIdx] & stkMeshBulkData.mesh_meta_data().locally_owned_part();
+    const stk::mesh::BucketVector& elemBuckets = stkMeshBulkData.get_buckets(stk::topology::ELEM_RANK, localPart);
+
+    for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
+      stk::mesh::Bucket & elemBucket = **it;
+      const unsigned numElems = elemBucket.size();
+      for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
+	decomp.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], blockIdx));
+      }
+    }
+  }
+}
+
 void collapse_to_serial_partition(stk::mesh::BulkData & stkMeshBulkData,
                                   const std::vector<stk::mesh::Selector> & decompSelectors,
                                   stk::mesh::EntityProcVec & decomp)
@@ -1272,6 +1297,11 @@ bool is_graph_based_method(const std::string& method)
   return (method == "parmetis");
 }
 
+bool is_block_method(const std::string& method)
+{
+  return (method == "block");
+}
+
 void calculateGeometricOrGraphBasedDecomp(stk::mesh::BulkData & stkMeshBulkData,
                                           const std::vector<stk::mesh::Selector> & selectors,
                                           const stk::ParallelMachine & decompCommunicator,
@@ -1281,7 +1311,8 @@ void calculateGeometricOrGraphBasedDecomp(stk::mesh::BulkData & stkMeshBulkData,
 {
   ThrowRequireWithSierraHelpMsg(numSubdomainsToCreate > 0);
   ThrowRequireWithSierraHelpMsg(is_geometric_method(balanceSettings.getDecompMethod()) ||
-                                is_graph_based_method(balanceSettings.getDecompMethod()));
+                                is_graph_based_method(balanceSettings.getDecompMethod()) ||
+				is_block_method(balanceSettings.getDecompMethod()));
 
   if (numSubdomainsToCreate > 1) {
     if (is_geometric_method(balanceSettings.getDecompMethod())) {
@@ -1296,6 +1327,9 @@ void calculateGeometricOrGraphBasedDecomp(stk::mesh::BulkData & stkMeshBulkData,
       internal::fill_spider_connectivity_count_fields(stkMeshBulkData, balanceSettings);
       fill_decomp_using_parmetis(stkMeshBulkData, selectors, decompCommunicator, numSubdomainsToCreate, balanceSettings, decomp);
       stk::tools::destroy_custom_aura(stkMeshBulkData, customAura);
+    }
+    else if(is_block_method(balanceSettings.getDecompMethod())) {
+      fill_decomp_using_blocks(stkMeshBulkData, decomp);
     }
   }
   else {

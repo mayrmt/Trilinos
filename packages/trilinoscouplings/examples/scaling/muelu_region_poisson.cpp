@@ -143,21 +143,22 @@ int main(int argc, char *argv[]) {
     /************************************** SETUP *************************************/
     /**********************************************************************************/
 
-
-    // Setup output stream, MPI, and grab info
-    Teuchos::RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-    Teuchos::FancyOStream& out = *fancy;
-    out.setOutputToRootOnly(0); // use out on rank 0
-
-    Teuchos::RCP<Teuchos::FancyOStream> fancydebug = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-    Teuchos::FancyOStream& debug = *fancydebug; // use on all ranks
-
     // TODO: comb back through everything and make sure I'm using MPI comms properly when necessary
     Teuchos::GlobalMPISession mpiSession(&argc, &argv,0);
     Teuchos::RCP<const Teuchos::MpiComm<int> > comm = Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
 
     const int numRanks = comm->getSize();
     const int myRank = comm->getRank();
+
+    // Setup output streams
+    Teuchos::RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    fancy->setProcRankAndSize (myRank, numRanks);
+    fancy->setOutputToRootOnly(0);
+    Teuchos::FancyOStream& out = *fancy;
+    // out.setOutputToRootOnly(0); // use out on rank 0
+
+    Teuchos::RCP<Teuchos::FancyOStream> fancydebug = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    Teuchos::FancyOStream& debug = *fancydebug; // use on all ranks
 
     out << "Running TrilinosCouplings region multigrid driver on " << numRanks << " ranks... \n";
 
@@ -300,24 +301,24 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> eBlocks;
     mesh->getElementBlockNames(eBlocks);
     for (int blockId = 0; blockId < eBlocks.size(); ++blockId)
-      std::cout << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
+      out << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
     std::vector<bool> unstructured_eBlocks(eBlocks.size(), false);
-    std::cout << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
+    out << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
     for (int blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
-      std::cout << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
+      out << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
     // TODO: set unstructured blocks based on some sort of input information; for example, using the Exodus ex_get_var* functions
 
     // grab the number and names of sidesets
     std::vector<std::string> sidesets;
     mesh->getSidesetNames(sidesets);
     for (int sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
-      std::cout << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
+      out << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
 
     // grab the number and names of nodesets
     std::vector<std::string> nodesets;
     mesh->getNodesetNames(nodesets);
     for (int nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
-      std::cout << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
+      out << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
 
     // create a physics blocks parameter list
     Teuchos::RCP<Teuchos::ParameterList> ipb = Teuchos::parameterList("Physics Blocks");
@@ -534,38 +535,38 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-      std::cout << "p=" << myRank << "| Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+      std::cout << "p=" << myRank << " | Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
       /* First we extract some basic data */
       Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
       Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
       const size_t num_regions = mesh->getNumElementBlocks();
 
-      /* Redistribute the mesh so that each element block/region is assigned to a MPI rank */
-      const size_t numProcs = stk::parallel_machine_size(*(comm->getRawMpiComm()));
-      if(num_regions != numProcs) {
-	std::cout << "numProcs=" << numProcs << " and num_regions=" << num_regions << std::endl;
-	throw("Currently when using exodus files, the number of element blocks, a.k.a. regions, must match the number of MPI ranks.");
-      }
+      // /* Redistribute the mesh so that each element block/region is assigned to a MPI rank */
+      // const size_t numProcs = stk::parallel_machine_size(*(comm->getRawMpiComm()));
+      // if(num_regions != numProcs) {
+      // 	std::cout << "numProcs=" << numProcs << " and num_regions=" << num_regions << std::endl;
+      // 	throw("Currently when using exodus files, the number of element blocks, a.k.a. regions, must match the number of MPI ranks.");
+      // }
 
-      stk::mesh::EntityProcVec elemsToProcs;
-      // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
-      for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
-	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
-	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
-	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
-	// std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
-	for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
-	  stk::mesh::Bucket & elemBucket = **it;
-	  const unsigned numElems = elemBucket.size();
-	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
-	    elemsToProcs.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], regionIdx));
-	  }
-	}
-      }
-      bulk_data->change_entity_owner(elemsToProcs);
+      // stk::mesh::EntityProcVec elemsToProcs;
+      // // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
+      // for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
+      // 	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+      // 	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+      // 	const stk::mesh::BucketVector& elemBuckets = bulk_data->get_buckets(stk::topology::ELEM_RANK, localRegion);
+      // 	// std::cout << "p=" << myRank << "| numBuckets in region " << regionIdx << ": " << elemBuckets.size() << std::endl;
+      // 	for(stk::mesh::BucketVector::const_iterator it = elemBuckets.begin(); it != elemBuckets.end(); ++it) {
+      // 	  stk::mesh::Bucket & elemBucket = **it;
+      // 	  const unsigned numElems = elemBucket.size();
+      // 	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx) {
+      // 	    elemsToProcs.push_back(stk::mesh::EntityProc(elemBucket[elemIdx], regionIdx));
+      // 	  }
+      // 	}
+      // }
+      // bulk_data->change_entity_owner(elemsToProcs);
 
-      std::cout << "p=" << myRank << "| The mesh has been redistributed!" << std::endl;
+      // std::cout << "p=" << myRank << "| The mesh has been redistributed!" << std::endl;
       // for(size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx) {
       // 	stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
       // 	stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
@@ -581,10 +582,13 @@ int main(int argc, char *argv[]) {
       */
       std::vector<stk::mesh::EntityVector> interface_nodes;
       interface_nodes.resize(num_regions);
+      std::vector<Teuchos::Array<int>> interface_node_pids;
+      interface_node_pids.resize(num_regions);
       for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
       {
         stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[my_region_id]);
         stk::mesh::EntityVector& my_interface_nodes = interface_nodes[my_region_id];
+        Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[my_region_id];
 
         for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
         {
@@ -598,6 +602,9 @@ int main(int argc, char *argv[]) {
             stk::mesh::EntityVector current_interface_nodes;
             bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
             my_interface_nodes.insert(my_interface_nodes.end(), current_interface_nodes.begin(), current_interface_nodes.end());
+
+            Teuchos::Array<int> pid_list(current_interface_nodes.size(), static_cast<int>(other_region_id));
+            my_interface_node_pids.insert(my_interface_node_pids.end(), pid_list.begin(), pid_list.end());
           }
         }
       }
@@ -613,6 +620,102 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      // --------------------------------------------------------------
+      // Compute lists of send/receive GIDs at region interfaces
+      // --------------------------------------------------------------
+
+      Teuchos::Array<GlobalOrdinal> sendGIDs; // GIDs of nodes
+      Teuchos::Array<int> sendPIDs; // Target
+      LO numReceive = 0;
+      LO numSend = 0;
+      Teuchos::Array<GO> receiveGIDs;
+      Teuchos::Array<int> receivePIDs;
+      Teuchos::Array<LO> receiveLIDs;
+      Teuchos::Array<LO> sendLIDs;
+      Teuchos::Array<LO> interfaceLIDs;
+
+      // const stk::mesh::Part& my_region = meta_data->locally_owned_part();
+
+      // // Compute intersection with other regions and decide if these nodes are to be sent or received
+      // for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
+      // {
+      //   stk::mesh::Part* other_region = mesh->getElementBlockPart(eBlocks[other_region_id]);
+      //   stk::mesh::Selector block_intersection = *my_region & *other_region;
+
+      //   // Compute intersection and add to list of my interface nodes
+      //   stk::mesh::EntityVector current_interface_nodes;
+      //   bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
+
+      //   std::mesh::EntityProcVec nodesToProcs;
+      //   stk::mesh::Selector localRegion = myRegion & meta_data->locally_owned_part();
+    	//   const stk::mesh::BucketVector& nodeBuckets = bulk_data->get_buckets(stk::topology::NODE_RANK, localRegion);
+      // 	for(stk::mesh::BucketVector::const_iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it)
+      //   {
+      // 	  stk::mesh::Bucket & nodeBucket = **it;
+      // 	  const unsigned numElems = nodeBucket.size();
+      // 	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx)
+      //     {
+      // 	    nodesToProcs.push_back(stk::mesh::EntityProc(nodeBucket[elemIdx], regionIdx));
+      // 	  }
+      // 	}
+      // }
+
+      stk::mesh::EntityProcVec nodesToProcs;
+      // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
+      for (size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx)
+      {
+        stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+        stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+        const stk::mesh::BucketVector& nodeBuckets = bulk_data->get_buckets(stk::topology::NODE_RANK, localRegion);
+        // std::cout << "p=" << myRank << "| numNodeBuckets in region " << regionIdx << ": " << nodeBuckets.size() << std::endl;
+
+        for (stk::mesh::BucketVector::const_iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it)
+        {
+          stk::mesh::Bucket & nodeBucket = **it;
+          const unsigned numNodes = nodeBucket.size();
+          for (unsigned nodeIdx = 0; nodeIdx < numNodes; ++nodeIdx)
+            nodesToProcs.push_back(stk::mesh::EntityProc(nodeBucket[nodeIdx], regionIdx));
+        }
+      }
+
+      // for (const auto& item : nodesToProcs)
+      // {
+      //   std::cout << "p=" << myRank << " | node: " << item.first << ", proc: " << item.second << std::endl;
+      // }
+
+      // for (size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx)
+      size_t regionIdx = myRank;
+      {
+        const stk::mesh::EntityVector& my_interface_nodes = interface_nodes[regionIdx];
+        const Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
+        for (size_t node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
+        {
+          const stk::mesh::Entity& node = my_interface_nodes[node_idx];
+          const unsigned node_owner = mesh->entityOwnerRank(node);
+          // std::cout << "p=" << myRank << " | node " << node << " owned by proc " << node_owner << std::endl;
+
+          if (myRank != node_owner)
+          {
+            receiveGIDs.push_back(node.local_offset());
+            receivePIDs.push_back(node_owner);
+          }
+          else if (myRank == node_owner)
+          {
+            sendGIDs.push_back(node.local_offset());
+            sendPIDs.push_back(my_interface_node_pids[node_idx]);
+          }
+        }
+      }
+
+      std::cout << "p=" << myRank << " | sendGIDs = " << sendGIDs << std::endl;
+      std::cout << "p=" << myRank << " | sendPIDs = " << sendPIDs << std::endl;
+
+      std::cout << "p=" << myRank << " | receiveGIDs = " << receiveGIDs << std::endl;
+      std::cout << "p=" << myRank << " | receivePIDs = " << receivePIDs << std::endl;
+
+      // --------------------------------------------------------------
+
+      // for (const auto& interface : interface_nodes)
       // {
       //   for (const auto& node : interface)
       //   {
@@ -624,6 +727,7 @@ int main(int argc, char *argv[]) {
       //   }
       // }
 
+      // comm->barrier();
       // std::cout << "About to exit(0) ..." << std::endl;
       // exit(0);
 
