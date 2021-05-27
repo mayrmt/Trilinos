@@ -142,21 +142,22 @@ int main(int argc, char *argv[]) {
     /************************************** SETUP *************************************/
     /**********************************************************************************/
 
-
-    // Setup output stream, MPI, and grab info
-    Teuchos::RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-    Teuchos::FancyOStream& out = *fancy;
-    out.setOutputToRootOnly(0); // use out on rank 0
-
-    Teuchos::RCP<Teuchos::FancyOStream> fancydebug = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-    Teuchos::FancyOStream& debug = *fancydebug; // use on all ranks
-
     // TODO: comb back through everything and make sure I'm using MPI comms properly when necessary
     Teuchos::GlobalMPISession mpiSession(&argc, &argv,0);
     Teuchos::RCP<const Teuchos::MpiComm<int> > comm = Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
 
     const int numRanks = comm->getSize();
     const int myRank = comm->getRank();
+
+    // Setup output streams
+    Teuchos::RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    fancy->setProcRankAndSize (myRank, numRanks);
+    fancy->setOutputToRootOnly(0);
+    Teuchos::FancyOStream& out = *fancy;
+    // out.setOutputToRootOnly(0); // use out on rank 0
+
+    Teuchos::RCP<Teuchos::FancyOStream> fancydebug = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    Teuchos::FancyOStream& debug = *fancydebug; // use on all ranks
 
     out << "Running TrilinosCouplings region multigrid driver on " << numRanks << " ranks... \n";
 
