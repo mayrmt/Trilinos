@@ -580,10 +580,13 @@ int main(int argc, char *argv[]) {
       */
       std::vector<stk::mesh::EntityVector> interface_nodes;
       interface_nodes.resize(num_regions);
+      std::vector<Teuchos::Array<int>> interface_node_pids;
+      interface_node_pids.resize(num_regions);
       for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
       {
         stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[my_region_id]);
         stk::mesh::EntityVector& my_interface_nodes = interface_nodes[my_region_id];
+        Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[my_region_id];
 
         for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
         {
@@ -597,6 +600,9 @@ int main(int argc, char *argv[]) {
             stk::mesh::EntityVector current_interface_nodes;
             bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
             my_interface_nodes.insert(my_interface_nodes.end(), current_interface_nodes.begin(), current_interface_nodes.end());
+
+            Teuchos::Array<int> pid_list(current_interface_nodes.size(), static_cast<int>(other_region_id));
+            my_interface_node_pids.insert(my_interface_node_pids.end(), pid_list.begin(), pid_list.end());
           }
         }
       }
@@ -611,6 +617,101 @@ int main(int argc, char *argv[]) {
           debug << "\n" << std::endl;
         }
       }
+
+      // --------------------------------------------------------------
+      // Compute lists of send/receive GIDs at region interfaces
+      // --------------------------------------------------------------
+
+      Teuchos::Array<GlobalOrdinal> sendGIDs; // GIDs of nodes
+      Teuchos::Array<int> sendPIDs; // Target
+      LO numReceive = 0;
+      LO numSend = 0;
+      Teuchos::Array<GO> receiveGIDs;
+      Teuchos::Array<int> receivePIDs;
+      Teuchos::Array<LO> receiveLIDs;
+      Teuchos::Array<LO> sendLIDs;
+      Teuchos::Array<LO> interfaceLIDs;
+
+      // const stk::mesh::Part& my_region = meta_data->locally_owned_part();
+
+      // // Compute intersection with other regions and decide if these nodes are to be sent or received
+      // for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
+      // {
+      //   stk::mesh::Part* other_region = mesh->getElementBlockPart(eBlocks[other_region_id]);
+      //   stk::mesh::Selector block_intersection = *my_region & *other_region;
+
+      //   // Compute intersection and add to list of my interface nodes
+      //   stk::mesh::EntityVector current_interface_nodes;
+      //   bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
+
+      //   std::mesh::EntityProcVec nodesToProcs;
+      //   stk::mesh::Selector localRegion = myRegion & meta_data->locally_owned_part();
+    	//   const stk::mesh::BucketVector& nodeBuckets = bulk_data->get_buckets(stk::topology::NODE_RANK, localRegion);
+      // 	for(stk::mesh::BucketVector::const_iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it)
+      //   {
+      // 	  stk::mesh::Bucket & nodeBucket = **it;
+      // 	  const unsigned numElems = nodeBucket.size();
+      // 	  for(unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx)
+      //     {
+      // 	    nodesToProcs.push_back(stk::mesh::EntityProc(nodeBucket[elemIdx], regionIdx));
+      // 	  }
+      // 	}
+      // }
+
+      stk::mesh::EntityProcVec nodesToProcs;
+      // std::cout << "p=" << myRank << "| Loop over regions/parts to associate elements to regions" << std::endl;
+      for (size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx)
+      {
+        stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[regionIdx]);
+        stk::mesh::Selector localRegion = *myRegion & meta_data->locally_owned_part();
+        const stk::mesh::BucketVector& nodeBuckets = bulk_data->get_buckets(stk::topology::NODE_RANK, localRegion);
+        // std::cout << "p=" << myRank << "| numNodeBuckets in region " << regionIdx << ": " << nodeBuckets.size() << std::endl;
+
+        for (stk::mesh::BucketVector::const_iterator it = nodeBuckets.begin(); it != nodeBuckets.end(); ++it)
+        {
+          stk::mesh::Bucket & nodeBucket = **it;
+          const unsigned numNodes = nodeBucket.size();
+          for (unsigned nodeIdx = 0; nodeIdx < numNodes; ++nodeIdx)
+            nodesToProcs.push_back(stk::mesh::EntityProc(nodeBucket[nodeIdx], regionIdx));
+        }
+      }
+
+      // for (const auto& item : nodesToProcs)
+      // {
+      //   std::cout << "p=" << myRank << " | node: " << item.first << ", proc: " << item.second << std::endl;
+      // }
+
+      // for (size_t regionIdx = 0; regionIdx < num_regions; ++regionIdx)
+      size_t regionIdx = myRank;
+      {
+        const stk::mesh::EntityVector& my_interface_nodes = interface_nodes[regionIdx];
+        const Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
+        for (size_t node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
+        {
+          const stk::mesh::Entity& node = my_interface_nodes[node_idx];
+          const unsigned node_owner = mesh->entityOwnerRank(node);
+          // std::cout << "p=" << myRank << " | node " << node << " owned by proc " << node_owner << std::endl;
+
+          if (myRank != node_owner)
+          {
+            receiveGIDs.push_back(node.local_offset());
+            receivePIDs.push_back(node_owner);
+          }
+          else if (myRank == node_owner)
+          {
+            sendGIDs.push_back(node.local_offset());
+            sendPIDs.push_back(my_interface_node_pids[node_idx]);
+          }
+        }
+      }
+
+      std::cout << "p=" << myRank << " | sendGIDs = " << sendGIDs << std::endl;
+      std::cout << "p=" << myRank << " | sendPIDs = " << sendPIDs << std::endl;
+
+      std::cout << "p=" << myRank << " | receiveGIDs = " << receiveGIDs << std::endl;
+      std::cout << "p=" << myRank << " | receivePIDs = " << receivePIDs << std::endl;
+
+      // --------------------------------------------------------------
 
       // for (const auto& interface : interface_nodes)
       // {
