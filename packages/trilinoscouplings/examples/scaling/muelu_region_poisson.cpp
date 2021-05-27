@@ -300,24 +300,24 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> eBlocks;
     mesh->getElementBlockNames(eBlocks);
     for (int blockId = 0; blockId < eBlocks.size(); ++blockId)
-      std::cout << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
+      std::cout << "p=" << myRank << " | eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
     std::vector<bool> unstructured_eBlocks(eBlocks.size(), false);
-    std::cout << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
+    std::cout << "p=" << myRank << " | After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
     for (int blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
-      std::cout << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
+      std::cout << "p=" << myRank << " | unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
     // TODO: set unstructured blocks based on some sort of input information; for example, using the Exodus ex_get_var* functions
 
     // grab the number and names of sidesets
     std::vector<std::string> sidesets;
     mesh->getSidesetNames(sidesets);
     for (int sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
-      std::cout << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
+      std::cout << "p=" << myRank << " | sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
 
     // grab the number and names of nodesets
     std::vector<std::string> nodesets;
     mesh->getNodesetNames(nodesets);
     for (int nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
-      std::cout << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
+      std::cout << "p=" << myRank << " | nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
 
     // create a physics blocks parameter list
     Teuchos::RCP<Teuchos::ParameterList> ipb = Teuchos::parameterList("Physics Blocks");
@@ -533,7 +533,7 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-      std::cout << "p=" << myRank << "| Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+      std::cout << "p=" << myRank << " | Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
       /* First we extract some basic data */
       Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
