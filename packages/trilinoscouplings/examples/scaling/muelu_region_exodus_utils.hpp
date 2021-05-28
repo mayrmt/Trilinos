@@ -51,9 +51,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check x+ (right)
     unsigned int sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,4,i) == vertices(elmk,0,i)) && 
-                     (vertices(elmj,5,i) == vertices(elmk,1,i)) && 
-                     (vertices(elmj,6,i) == vertices(elmk,2,i)) && 
+       sharedVert += (vertices(elmj,4,i) == vertices(elmk,0,i)) &&
+                     (vertices(elmj,5,i) == vertices(elmk,1,i)) &&
+                     (vertices(elmj,6,i) == vertices(elmk,2,i)) &&
                      (vertices(elmj,7,i) == vertices(elmk,3,i));
     }
     if( sharedVert == dim )
@@ -64,9 +64,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check x- (left)
     sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,0,i) == vertices(elmk,4,i)) && 
-                     (vertices(elmj,1,i) == vertices(elmk,5,i)) && 
-                     (vertices(elmj,2,i) == vertices(elmk,6,i)) && 
+       sharedVert += (vertices(elmj,0,i) == vertices(elmk,4,i)) &&
+                     (vertices(elmj,1,i) == vertices(elmk,5,i)) &&
+                     (vertices(elmj,2,i) == vertices(elmk,6,i)) &&
                      (vertices(elmj,3,i) == vertices(elmk,7,i));
     }
     if( sharedVert == dim )
@@ -77,9 +77,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check y+ (front)
     sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,0,i) == vertices(elmk,3,i)) && 
-                     (vertices(elmj,1,i) == vertices(elmk,2,i)) && 
-                     (vertices(elmj,4,i) == vertices(elmk,7,i)) && 
+       sharedVert += (vertices(elmj,0,i) == vertices(elmk,3,i)) &&
+                     (vertices(elmj,1,i) == vertices(elmk,2,i)) &&
+                     (vertices(elmj,4,i) == vertices(elmk,7,i)) &&
                      (vertices(elmj,5,i) == vertices(elmk,6,i));
     }
     if( sharedVert == dim )
@@ -90,9 +90,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check y- (back)
     sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,3,i) == vertices(elmk,0,i)) && 
-                     (vertices(elmj,2,i) == vertices(elmk,1,i)) && 
-                     (vertices(elmj,7,i) == vertices(elmk,4,i)) && 
+       sharedVert += (vertices(elmj,3,i) == vertices(elmk,0,i)) &&
+                     (vertices(elmj,2,i) == vertices(elmk,1,i)) &&
+                     (vertices(elmj,7,i) == vertices(elmk,4,i)) &&
                      (vertices(elmj,6,i) == vertices(elmk,5,i));
     }
     if( sharedVert == dim )
@@ -103,9 +103,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check z+ (top)
     sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,0,i) == vertices(elmk,1,i)) && 
-                     (vertices(elmj,3,i) == vertices(elmk,2,i)) && 
-                     (vertices(elmj,4,i) == vertices(elmk,5,i)) && 
+       sharedVert += (vertices(elmj,0,i) == vertices(elmk,1,i)) &&
+                     (vertices(elmj,3,i) == vertices(elmk,2,i)) &&
+                     (vertices(elmj,4,i) == vertices(elmk,5,i)) &&
                      (vertices(elmj,7,i) == vertices(elmk,6,i));
     }
     if( sharedVert == dim )
@@ -116,9 +116,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     // check z- (bottom)
     sharedVert = 0;
     for(unsigned int i = 0; i<dim; i++){
-       sharedVert += (vertices(elmj,1,i) == vertices(elmk,0,i)) && 
-                     (vertices(elmj,2,i) == vertices(elmk,3,i)) && 
-                     (vertices(elmj,5,i) == vertices(elmk,4,i)) && 
+       sharedVert += (vertices(elmj,1,i) == vertices(elmk,0,i)) &&
+                     (vertices(elmj,2,i) == vertices(elmk,3,i)) &&
+                     (vertices(elmj,5,i) == vertices(elmk,4,i)) &&
                      (vertices(elmj,6,i) == vertices(elmk,7,i));
     }
     if( sharedVert == dim )
