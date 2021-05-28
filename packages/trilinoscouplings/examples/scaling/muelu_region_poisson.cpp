@@ -535,7 +535,7 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-      std::cout << "p=" << myRank << " | Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
+      out << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
       /* First we extract some basic data */
       Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
@@ -673,7 +673,9 @@ int main(int argc, char *argv[]) {
       // exit(0);
 
     } // if(mesh_refinements>0 && !delete_parent_elements)
-    std::cout << "Done working on mesh refinement and blocks detection" << std::endl;
+
+    comm->barrier();
+    out << "Done working on mesh refinement and blocks detection" << std::endl;
 
     // Probably need to map indices of elements from the Percept indices back to the Panzer indices
 
@@ -711,7 +713,7 @@ int main(int argc, char *argv[]) {
       perceptrenumbertest(mesh_refinements);
 
     // next we need to get the LIDs in order
-    std::cout<<"p="<<myRank<<" | Get Elements in order."<<std::endl;
+    out<<"Get Elements in order."<<std::endl;
     auto dofLID = dofManager->getLIDs();
     const int numElm = dofLID.extent(0);
     Teuchos::Array<LO> elemRemap(numElm,-1);
