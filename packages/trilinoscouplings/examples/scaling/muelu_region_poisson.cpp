@@ -542,41 +542,14 @@ int main(int argc, char *argv[]) {
       Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
       const size_t num_regions = mesh->getNumElementBlocks();
 
-      /* Use STK's Selector to find nodes at region interfaces
-
-      STK's concept of a Selector enables boolean operations on element blocks and, thus,
-      is used to find interface nodes, i.e. nodes that belong to two regions. We find the
-      intersection of all possible region pairs to identify all interface nodes of a given region.
-      */
+      // Find region interface nodes (and their owners)
       std::vector<stk::mesh::EntityVector> interface_nodes;
       interface_nodes.resize(num_regions);
       std::vector<Teuchos::Array<int>> interface_node_pids;
       interface_node_pids.resize(num_regions);
-      for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
-      {
-        stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[my_region_id]);
-        stk::mesh::EntityVector& my_interface_nodes = interface_nodes[my_region_id];
-        Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[my_region_id];
+      computeInterfaceNodes(interface_nodes, interface_node_pids, mesh);
 
-        for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
-        {
-          if (my_region_id != other_region_id)
-          {
-            // Grab another region and define the intersection operation
-            stk::mesh::Part* other_region = mesh->getElementBlockPart(eBlocks[other_region_id]);
-            stk::mesh::Selector block_intersection = *my_region & *other_region;
-
-            // Compute intersection and add to list of my interface nodes
-            stk::mesh::EntityVector current_interface_nodes;
-            bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
-            my_interface_nodes.insert(my_interface_nodes.end(), current_interface_nodes.begin(), current_interface_nodes.end());
-
-            Teuchos::Array<int> pid_list(current_interface_nodes.size(), static_cast<int>(other_region_id));
-            my_interface_node_pids.insert(my_interface_node_pids.end(), pid_list.begin(), pid_list.end());
-          }
-        }
-      }
-
+      // Print region interface nodes
       if (print_debug_info)
       {
         for (size_t region_id_one = 0; region_id_one < num_regions; ++region_id_one)
