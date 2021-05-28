@@ -916,7 +916,7 @@ int main(int argc, char *argv[]) {
     // convert generic linear object container to tpetra container
     Teuchos::RCP<panzer::TpetraLinearObjContainer<ST,LO,GO> > tp_container = Teuchos::rcp_dynamic_cast<panzer::TpetraLinearObjContainer<ST,LO,GO> >(container);
 
-    
+
     Teuchos::RCP<MueLu::TpetraOperator<ST,LO,GO,NT> > mueLuPreconditioner;
 
     if(xmlFileName.size())
