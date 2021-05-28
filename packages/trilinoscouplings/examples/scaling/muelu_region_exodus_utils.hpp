@@ -263,21 +263,44 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
   return lidRemap;
 }
 
-/* Use STK's Selector to find nodes at region interfaces
+/* Compute list of nodes to be sent/received by each rank when duplicating the region interface nodes
 
-STK's concept of a Selector enables boolean operations on element blocks and, thus,
+We use STK's Selector to find nodes at region interfaces.
+It enables boolean operations on element blocks and, thus,
 is used to find interface nodes, i.e. nodes that belong to two regions. We find the
 intersection of all possible region pairs to identify all interface nodes of a given region.
 */
-void computeInterfaceNodes(std::vector<stk::mesh::EntityVector>& interface_nodes,
-    std::vector<Teuchos::Array<int>>& interface_node_pids, Teuchos::RCP<const panzer_stk::STK_Interface> mesh)
+void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
+    const bool print_debug_info, Teuchos::FancyOStream& out)
 {
+  // Panzer types
+  using ST = double;
+  using LO = panzer::LocalOrdinal;
+  using GO = panzer::GlobalOrdinal;
+  using NT = panzer::TpetraNodeType;
+
+  // MueLu types
+  using Scalar = ST;
+  using LocalOrdinal = LO;
+  using GlobalOrdinal = GO;
+  using Node = NT;
+
+  const int myRank = mesh->getComm()->getRank();
+  const int numProcs = mesh->getComm()->getSize();
+
   std::vector<std::string> eBlocks;
   mesh->getElementBlockNames(eBlocks);
+
+  if (numProcs != eBlocks.size()) throw("Number of MPI ranks and number of regions do not match.");
 
   Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
   // Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
   const size_t num_regions = mesh->getNumElementBlocks();
+
+  std::vector<stk::mesh::EntityVector> interface_nodes;
+  interface_nodes.resize(num_regions);
+  std::vector<Teuchos::Array<int>> interface_node_pids;
+  interface_node_pids.resize(num_regions);
 
   for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
   {
@@ -300,6 +323,90 @@ void computeInterfaceNodes(std::vector<stk::mesh::EntityVector>& interface_nodes
 
         Teuchos::Array<int> pid_list(current_interface_nodes.size(), static_cast<int>(other_region_id));
         my_interface_node_pids.insert(my_interface_node_pids.end(), pid_list.begin(), pid_list.end());
+      }
+    }
+  }
+
+  // Print region interface nodes
+  if (print_debug_info)
+  {
+    for (size_t region_id_one = 0; region_id_one < num_regions; ++region_id_one)
+    {
+      std::cout << "Interface nodes of region " << eBlocks[region_id_one] << ":\n";
+      for (const auto& node : interface_nodes[region_id_one])
+        std::cout << "  " << node;
+      std::cout << "\n" << std::endl;
+    }
+  }
+
+  Teuchos::Array<GlobalOrdinal> sendGIDs; // GIDs of nodes
+  Teuchos::Array<int> sendPIDs; // Target
+
+  Teuchos::Array<GO> receiveGIDs;
+  Teuchos::Array<int> receivePIDs;
+
+  Teuchos::Array<LO> receiveLIDs;
+  Teuchos::Array<LO> sendLIDs;
+  Teuchos::Array<LO> interfaceLIDs;
+
+  size_t regionIdx = myRank;
+  {
+    const stk::mesh::EntityVector& my_interface_nodes = interface_nodes[regionIdx];
+    const Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
+    for (size_t node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
+    {
+      const stk::mesh::Entity& node = my_interface_nodes[node_idx];
+      const unsigned node_owner = mesh->entityOwnerRank(node);
+      // std::cout << "p=" << myRank << " | node " << node << " owned by proc " << node_owner << std::endl;
+
+      if (myRank != node_owner)
+      {
+        // Make sure to add GIDs only once
+        bool found_it = false;
+        for (const auto& node_gid : receiveGIDs)
+        {
+          if (static_cast<GO>(mesh->elementGlobalId(node)) == node_gid)
+          {
+            found_it = true;
+            break;
+          }
+        }
+
+        if (!found_it)
+        {
+          receiveLIDs.push_back(node.local_offset());
+          receiveGIDs.push_back(static_cast<GO>(mesh->elementGlobalId(node)));
+          receivePIDs.push_back(node_owner);
+        }
+      }
+      else if (myRank == node_owner)
+      {
+        sendLIDs.push_back(node.local_offset());
+        sendGIDs.push_back(static_cast<GO>(mesh->elementGlobalId(node)));
+        sendPIDs.push_back(my_interface_node_pids[node_idx]);
+      }
+    }
+  }
+
+  const LO numSend = static_cast<LO>(sendGIDs.size());
+  const LO numReceive = static_cast<LO>(receiveGIDs.size());
+
+  if (print_debug_info)
+  {
+    out << std::endl;
+    for (int rank = 0; rank < num_regions; ++rank)
+    {
+      mesh->getComm()->barrier();
+      if (rank == myRank)
+      {
+        std::cout << "p=" << myRank << " | sendLIDs = " << sendLIDs << std::endl;
+        std::cout << "p=" << myRank << " | sendGIDs = " << sendGIDs << std::endl;
+        std::cout << "p=" << myRank << " | sendPIDs = " << sendPIDs << std::endl;
+
+        std::cout << "p=" << myRank << " | receiveLIDs = " << receiveLIDs << std::endl;
+        std::cout << "p=" << myRank << " | receiveGIDs = " << receiveGIDs << std::endl;
+        std::cout << "p=" << myRank << " | receivePIDs = " << receivePIDs << std::endl;
+        std::cout << std::endl;
       }
     }
   }
