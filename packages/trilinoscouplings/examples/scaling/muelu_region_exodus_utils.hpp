@@ -436,4 +436,28 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
         << std::endl;
     comm->barrier();
   }
+
+  {
+    GO nodeGID = -Teuchos::ScalarTraits<GO>::one();
+    for (size_t localNodeIdx = 0; localNodeIdx < numLocalCompositeNodes; ++localNodeIdx)
+    {
+      nodeGID = static_cast<GO>(mesh->elementGlobalId(my_nodes[localNodeIdx]));
+      quasiRegionNodeGIDs[localNodeIdx] = nodeGID;
+      // for (int dof = 0; dof < numDofsPerNode; ++dof)
+      //   quasiRegionDofGIDs[localNodeIdx * numDofsPerNode + dof] = nodeGID * numDofsPerNode + dof;
+    }
+    for (size_t receiveNodeIdx = 0; receiveNodeIdx < numReceive; ++ receiveNodeIdx)
+    {
+      quasiRegionNodeGIDs[numLocalCompositeNodes + receiveNodeIdx] = receiveGIDs[receiveNodeIdx];
+      // for (int dof = 0; dof < numDofsPerNode; ++dof)
+      //   quasiRegionDofGIDs[numLocalCompositeNodes * numDofsPerNode + receiveNodeIdx * numDofsPerNode + dof]
+      //       = receiveGIDs[receiveNodeIdx];
+    }
+
+    if (print_debug_info)
+    {
+      comm->barrier();
+      std::cout << "p=" << myRank << " | quasiRegionNodeGIDs = " << quasiRegionNodeGIDs << std::endl;
+    }
+  }
 }
