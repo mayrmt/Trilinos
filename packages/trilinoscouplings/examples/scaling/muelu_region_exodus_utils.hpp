@@ -421,13 +421,12 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
 
   const int numDofsPerNode = 1;
   LO numLocalRegionNodes = -1;
-  Teuchos::Array<GlobalOrdinal> quasiRegionGIDs;
-  Teuchos::Array<GlobalOrdinal> quasiRegionCoordGIDs;
+  Teuchos::Array<GlobalOrdinal> quasiRegionNodeGIDs;
+  Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDs;
 
   numLocalRegionNodes = numLocalCompositeNodes + numReceive;
-  quasiRegionGIDs.resize(numLocalRegionNodes*numDofsPerNode);
-  quasiRegionCoordGIDs.resize(numLocalRegionNodes);
-
+  quasiRegionNodeGIDs.resize(numLocalRegionNodes);
+  quasiRegionDofGIDs.resize(numLocalRegionNodes*numDofsPerNode);
 
   if (print_debug_info)
   {
