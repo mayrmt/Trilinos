@@ -285,8 +285,10 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
   using GlobalOrdinal = GO;
   using Node = NT;
 
-  const int myRank = mesh->getComm()->getRank();
-  const int numProcs = mesh->getComm()->getSize();
+  auto comm = mesh->getComm();
+
+  const int myRank = comm->getRank();
+  const int numProcs = comm->getSize();
 
   std::vector<std::string> eBlocks;
   mesh->getElementBlockNames(eBlocks);
@@ -294,7 +296,7 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
   if (numProcs != eBlocks.size()) throw("Number of MPI ranks and number of regions do not match.");
 
   Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
-  // Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
+  Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
   const size_t num_regions = mesh->getNumElementBlocks();
 
   std::vector<stk::mesh::EntityVector> interface_nodes;
@@ -396,7 +398,7 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
     out << std::endl;
     for (int rank = 0; rank < num_regions; ++rank)
     {
-      mesh->getComm()->barrier();
+      comm->barrier();
       if (rank == myRank)
       {
         std::cout << "p=" << myRank << " | sendLIDs = " << sendLIDs << std::endl;
@@ -409,5 +411,30 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
         std::cout << std::endl;
       }
     }
+  }
+
+  stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[myRank]);
+  stk::mesh::Selector local_region = *my_region & meta_data->locally_owned_part();
+  stk::mesh::EntityVector my_nodes;
+  bulk_data->get_entities(stk::topology::NODE_RANK, local_region, my_nodes);
+  const LO numLocalCompositeNodes = static_cast<LO>(my_nodes.size());
+
+  const int numDofsPerNode = 1;
+  LO numLocalRegionNodes = -1;
+  Teuchos::Array<GlobalOrdinal> quasiRegionGIDs;
+  Teuchos::Array<GlobalOrdinal> quasiRegionCoordGIDs;
+
+  numLocalRegionNodes = numLocalCompositeNodes + numReceive;
+  quasiRegionGIDs.resize(numLocalRegionNodes*numDofsPerNode);
+  quasiRegionCoordGIDs.resize(numLocalRegionNodes);
+
+
+  if (print_debug_info)
+  {
+    comm->barrier();
+    std::cout << "p=" << myRank << " | numLocalCompositeNodes = " << numLocalCompositeNodes
+        << "\tnumLocalRegionNodes = " << numLocalRegionNodes
+        << std::endl;
+    comm->barrier();
   }
 }
