@@ -239,6 +239,8 @@ int main(int argc, char *argv[]) {
     /******************************* MESH AND WORKSETS ********************************/
     /**********************************************************************************/
 
+    const int numDofsPerNode = 1;
+
     // TODO: due to #8475, we may need to create two meshes while we explore ways to correct it
 
     Teuchos::RCP<Teuchos::Time> meshTimer = Teuchos::TimeMonitor::getNewCounter("Step 1: Mesh generation");
@@ -448,6 +450,10 @@ int main(int argc, char *argv[]) {
     tm = Teuchos::null;
     tm = rcp(new Teuchos::TimeMonitor(*Teuchos::TimeMonitor::getNewTimer("Driver: 3 - Setup Region Information")));
 
+    // These will store the GIDs to be put into the region maps
+    Teuchos::Array<GlobalOrdinal> quasiRegionNodeGIDs;
+    Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDs;
+
     unsigned int children_per_element = 1 << (numDimensions*mesh_refinements);
     if(print_debug_info)
       out << "Number of mesh children = " << children_per_element << std::endl;
@@ -547,7 +553,7 @@ int main(int argc, char *argv[]) {
       // interface_nodes.resize(num_regions);
       // std::vector<Teuchos::Array<int>> interface_node_pids;
       // interface_node_pids.resize(num_regions);
-      computeInterfaceNodes(mesh, print_debug_info, out);
+      computeInterfaceNodes(mesh, print_debug_info, out, numDofsPerNode, quasiRegionNodeGIDs, quasiRegionDofGIDs);
 
       // comm->barrier();
       // std::cout << "About to exit(0) ..." << std::endl;
@@ -613,6 +619,21 @@ int main(int argc, char *argv[]) {
     //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
     //tp_object_factory->getMap()->describe(debug,Teuchos::VERB_EXTREME);
 
+    RCP<Map> quasiRegionRowMap = Teuchos::null;
+    RCP<Map> regionRowMap = Teuchos::null;
+    RCP<Map> quasiRegionColMap = Teuchos::null;
+    RCP<Map> regionColMap = Teuchos::null;
+    setupRegionMaps(comm, quasiRegionDofGIDs, quasiRegionRowMap, quasiRegionColMap, regionRowMap, regionColMap);
+
+    if (print_debug_info)
+    {
+      comm->barrier();
+      RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+      quasiRegionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
+      regionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
+    }
+
+    comm->barrier();
     std::cout << "About to exit(0) ..." << std::endl;
     exit(0);
 
@@ -865,7 +886,6 @@ int main(int argc, char *argv[]) {
       RCP<MultiVector>           nullspace;
       RCP<RealValuedMultiVector> coordinates;
 
-      const int numDofsPerNode = 1;
       Teuchos::Array<LO> lNodesPerDim(3); // TODO: this can't be removed so easily yet...
 
       // Create map and coordinates
