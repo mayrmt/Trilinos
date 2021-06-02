@@ -271,8 +271,14 @@ It enables boolean operations on element blocks and, thus,
 is used to find interface nodes, i.e. nodes that belong to two regions. We find the
 intersection of all possible region pairs to identify all interface nodes of a given region.
 */
-void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
-    const bool print_debug_info, Teuchos::FancyOStream& out)
+void computeInterfaceNodes(
+    Teuchos::RCP<const panzer_stk::STK_Interface> mesh, ///< STK mesh object with all element blocks etc.
+    const bool print_debug_info, ///< flag to switch on/off debug outpu
+    Teuchos::FancyOStream& out, ///< output stream
+    const int numDofsPerNode, ///< number of DOFs per mesh node
+    Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionNodeGIDs, ///< This rank's node GIDs in quasiRegion format
+    Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs ///< This rank's DOF GIDs in quasiRegion format
+    )
 {
   // Panzer types
   using ST = double;
@@ -420,10 +426,7 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
   bulk_data->get_entities(stk::topology::NODE_RANK, local_region, my_nodes);
   const LO numLocalCompositeNodes = static_cast<LO>(my_nodes.size());
 
-  const int numDofsPerNode = 1;
   LO numLocalRegionNodes = -1;
-  Teuchos::Array<GlobalOrdinal> quasiRegionNodeGIDs;
-  Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDs;
 
   numLocalRegionNodes = numLocalCompositeNodes + numReceive;
   quasiRegionNodeGIDs.resize(numLocalRegionNodes);
@@ -461,4 +464,44 @@ void computeInterfaceNodes(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
       std::cout << "p=" << myRank << " | quasiRegionNodeGIDs = " << quasiRegionNodeGIDs << std::endl;
     }
   }
+
+  // For now, we're limited to one Dof per node, so (i) assert and (ii) copy node GIDs to DOF GIDs
+  TEUCHOS_TEST_FOR_EXCEPTION(numDofsPerNode!=1, std::runtime_error,
+      "Case with numDofsPerNode != 1 not supported, yet.");
+  quasiRegionDofGIDs = quasiRegionNodeGIDs;
+}
+
+void setupRegionMaps(
+    RCP<const Teuchos::Comm<int>> comm,
+    const Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs, ///< This rank's DOF GIDs in quasiRegion format
+    RCP<Xpetra::Map<panzer::LocalOrdinal, panzer::GlobalOrdinal, panzer::TpetraNodeType>>& quasiRegionRowMap,
+    RCP<Xpetra::Map<panzer::LocalOrdinal, panzer::GlobalOrdinal, panzer::TpetraNodeType>>& quasiRegionColMap,
+    RCP<Xpetra::Map<panzer::LocalOrdinal, panzer::GlobalOrdinal, panzer::TpetraNodeType>>& regionRowMap,
+    RCP<Xpetra::Map<panzer::LocalOrdinal, panzer::GlobalOrdinal, panzer::TpetraNodeType>>& regionColMap
+    )
+{
+  // Panzer types
+  using ST = double;
+  using LO = panzer::LocalOrdinal;
+  using GO = panzer::GlobalOrdinal;
+  using NT = panzer::TpetraNodeType;
+
+  // MueLu types
+  using Scalar = ST;
+  using LocalOrdinal = LO;
+  using GlobalOrdinal = GO;
+  using Node = NT;
+
+#include <Xpetra_UseShortNames.hpp>
+
+  quasiRegionRowMap = Xpetra::MapFactory<LO,GO,Node>::Build(Xpetra::UseTpetra, Teuchos::OrdinalTraits<GO>::invalid(),
+      quasiRegionDofGIDs(), Teuchos::OrdinalTraits<GO>::zero(), comm);
+
+  regionRowMap = Xpetra::MapFactory<LO,GO,Node>::Build(quasiRegionRowMap->lib(), Teuchos::OrdinalTraits<GO>::invalid(),
+      quasiRegionDofGIDs.size(), quasiRegionRowMap->getIndexBase(), quasiRegionRowMap->getComm());
+
+  // For now, column map = row map
+  quasiRegionColMap = quasiRegionRowMap;
+  regionColMap = regionRowMap;
+
 }
