@@ -155,7 +155,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices, Teuchos::A
              ielem = en;
              elemRemap[iter++] = ielem;
              if( kcount )
-               IJK[2] += 1;
+               IJK[0] += 1;
              nextElem = true;
              break;
            }
@@ -184,7 +184,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices, Teuchos::A
         int output = checkNodeNeighbor( vertices, ielemStart0, en);
         if(output == 1){
           ielem = en;
-          IJK[0] += 1;
+          IJK[2] += 1;
           ielemStart0 = ielem;
           doThis = true;
           break;
@@ -197,6 +197,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices, Teuchos::A
 }
 
 Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer::LocalOrdinal> IJK,
+        Teuchos::Array<panzer::LocalOrdinal> elemRemap,
         const Kokkos::View< const panzer::LocalOrdinal**, Kokkos::LayoutRight, PHX::Device > dofLID,
         Teuchos::RCP<panzer::GlobalIndexer> dofManager,
         int nLID )
@@ -214,22 +215,22 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
   for(int k=0; k<IJK[2]; k++){
     for(int j=0; j<IJK[1]; j++){
       for(int i=0; i<IJK[0]; i++){
-        dofManager->getElementGIDs(i+IJK[0]*j+IJK[0]*IJK[1]*k,elmGIDs);
+        dofManager->getElementGIDs(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k],elmGIDs);
         gidRemap[ind] = elmGIDs[0];
-        lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 0);
+        lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 0);
         if(i+1==IJK[0]){
           gidRemap[ind] = elmGIDs[1];
-          lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 1);
+          lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 1);
         }
       } // i
       if(j+1==IJK[1]){
         for(int i=0; i<IJK[0]; i++){
-          dofManager->getElementGIDs(i+IJK[0]*j+IJK[0]*IJK[1]*k,elmGIDs);
+          dofManager->getElementGIDs(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k],elmGIDs);
           gidRemap[ind] = elmGIDs[3];
-          lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 3);
+          lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 3);
           if(i+1==IJK[0]){
             gidRemap[ind] = elmGIDs[2];
-            lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 2);
+            lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 2);
           }
         } // i
       }
@@ -237,22 +238,22 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
     if(k+1==IJK[2]){
       for(int j=0; j<IJK[1]; j++){
         for(int i=0; i<IJK[0]; i++){
-          dofManager->getElementGIDs(i+IJK[0]*j+IJK[0]*IJK[1]*k,elmGIDs);
+          dofManager->getElementGIDs(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k],elmGIDs);
           gidRemap[ind] = elmGIDs[4];
-          lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 4);
+          lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 4);
           if(i+1==IJK[0]){
             gidRemap[ind] = elmGIDs[5];
-            lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 5);
+            lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 5);
           }
         } // i
         if(j+1==IJK[1]){
           for(int i=0; i<IJK[0]; i++){
-            dofManager->getElementGIDs(i+IJK[0]*j+IJK[0]*IJK[1]*k,elmGIDs);
+            dofManager->getElementGIDs(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k],elmGIDs);
             gidRemap[ind] = elmGIDs[7];
-            lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 7);
+            lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 7);
             if(i+1==IJK[0]){
               gidRemap[ind] = elmGIDs[6];
-              lidRemap[ind++] = dofLID(i+IJK[0]*j+IJK[0]*IJK[1]*k, 6);
+              lidRemap[ind++] = dofLID(elemRemap[i+IJK[0]*j+IJK[0]*IJK[1]*k], 6);
             }
           } // i
         }
