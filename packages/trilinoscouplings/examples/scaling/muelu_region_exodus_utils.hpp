@@ -469,6 +469,48 @@ void computeInterfaceNodes(
   TEUCHOS_TEST_FOR_EXCEPTION(numDofsPerNode!=1, std::runtime_error,
       "Case with numDofsPerNode != 1 not supported, yet.");
   quasiRegionDofGIDs = quasiRegionNodeGIDs;
+
+  // Here we gather the interface GIDs (in composite layout)
+  // and the interface LIDs (in region layout) for the local rank
+  Teuchos::Array<LocalOrdinal> interfaceLIDsData;
+  Teuchos::Array<GlobalOrdinal> interfaceGIDs;
+  interfaceLIDsData.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
+  interfaceGIDs.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
+  using size_type = typename Teuchos::Array<GO>::size_type;
+  for(size_type nodeIdx = 0; nodeIdx < sendGIDs.size(); ++nodeIdx)
+  {
+    for(int dof = 0; dof < numDofsPerNode; ++dof)
+    {
+      LO dofIdx = nodeIdx*numDofsPerNode + dof;
+      interfaceGIDs[dofIdx] = sendGIDs[nodeIdx] * numDofsPerNode + dof;
+      // interfaceLIDsData[dofIdx] = compositeToRegionLIDs[sendLIDs[nodeIdx] * numDofsPerNode + dof];
+    }
+  }
+  for(size_type nodeIdx = 0; nodeIdx < receiveGIDs.size(); ++nodeIdx)
+  {
+    for(int dof = 0; dof < numDofsPerNode; ++dof)
+    {
+      LO dofIdx = nodeIdx*numDofsPerNode + dof;
+      interfaceGIDs[dofIdx + sendGIDs.size() * numDofsPerNode] = receiveGIDs[nodeIdx] * numDofsPerNode + dof;
+      // interfaceLIDsData[dofIdx + sendLIDs.size() * numDofsPerNode] = receiveLIDs[nodeIdx] * numDofsPerNode + dof;
+    }
+  }
+
+  // Have all the GIDs and LIDs we stort them in place with std::sort()
+  // Subsequently we bring unique values to the beginning of the array with
+  // std::unique() and delete the duplicates with erase.
+  // std::sort(interfaceLIDsData.begin(), interfaceLIDsData.end());
+  // interfaceLIDsData.erase(std::unique(interfaceLIDsData.begin(), interfaceLIDsData.end()),
+  //                         interfaceLIDsData.end());
+  std::sort(interfaceGIDs.begin(), interfaceGIDs.end());
+  interfaceGIDs.erase(std::unique(interfaceGIDs.begin(), interfaceGIDs.end()),
+                      interfaceGIDs.end());
+
+  if (print_debug_info)
+  {
+    comm->barrier();
+    std::cout << "p=" << myRank << " | interfaceGIDs = " << interfaceGIDs << std::endl;
+  }
 }
 
 void setupRegionMaps(
