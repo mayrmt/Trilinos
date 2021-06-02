@@ -555,10 +555,6 @@ int main(int argc, char *argv[]) {
       // interface_node_pids.resize(num_regions);
       computeInterfaceNodes(mesh, print_debug_info, out, numDofsPerNode, quasiRegionNodeGIDs, quasiRegionDofGIDs);
 
-      // comm->barrier();
-      // std::cout << "About to exit(0) ..." << std::endl;
-      // exit(0);
-
     } // if(mesh_refinements>0 && !delete_parent_elements)
 
     comm->barrier();
