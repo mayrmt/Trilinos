@@ -96,6 +96,9 @@
 #include "Panzer_STK_Utilities.hpp"
 #include "Panzer_TpetraLinearObjContainer.hpp"
 
+// // STK headers
+// #include "stk_mesh/base/Types.hpp"
+
 // Percept headers
 #include <percept/PerceptMesh.hpp>
 #include <adapt/UniformRefinerPattern.hpp>
@@ -403,7 +406,7 @@ int main(int argc, char *argv[]) {
     }
     mesh_factory->completeMeshConstruction(*mesh,MPI_COMM_WORLD); // this is where the mesh refinements are applied
 
-    unsigned int numDimensions = mesh->getDimension();
+    const unsigned int numDimensions = mesh->getDimension();
     if(print_debug_info)
       out << "Using dimension = " << numDimensions << std::endl;
 
@@ -590,6 +593,14 @@ int main(int argc, char *argv[]) {
       {
         out << "child= " << child_element_gids[i] << " parent= " << child_element_region_gids[i] << std::endl;
       }
+    }
+
+    stk::mesh::EntityVector nodes;
+    stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
+    stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, mesh->getMetaData()->locally_owned_part(), nodes);
+    for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx) {
+      double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
+      std::cout << "p=" << myRank << " | node " << nodeIdx << ": (" << nodeCoord[0] << ", " << nodeCoord[1] << ", " << nodeCoord[2] << ")" << std::endl; 
     }
 
     if (myRank == 0 && mesh_refinements)
