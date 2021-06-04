@@ -607,21 +607,29 @@ int main(int argc, char *argv[]) {
       perceptrenumbertest(mesh_refinements);
 
     // next we need to get the LIDs in order
-    std::cout<<"p="<<myRank<<" | Get Elements in order."<<std::endl;
+    out << "Get Elements in order." << std::endl;
     auto dofLID = dofManager->getLIDs();
     const int numElm = dofLID.extent(0);
     Teuchos::Array<LO> elemRemap(numElm,-1);
     Teuchos::Array<LO> IJK(3,1);// IJK counts for elements (one less than nodes).
 
     reorderLexElem(vertices, elemRemap, IJK);
-    std::cout<<"p="<<myRank<<" | "<<elemRemap<<std::endl;
+    if (print_debug_info)
+    {
+      comm->barrier();
+      std::cout << "p=" << myRank << " | elemRemap = " << elemRemap << std::endl;
+    }
 
     LO numElmInRegion = (IJK[0]+1)*(IJK[1]+1)*(IJK[2]+1);
 
     Teuchos::Array<LO> lidRemap = grabLIDsGIDsLexOrder(IJK, elemRemap, dofLID, dofManager, numElmInRegion );
 
-    std::cout<<"p="<<myRank<<" | "<<lidRemap<<std::endl;
-    std::cout<<"p="<<myRank<<" | "<<IJK<<std::endl;
+    if (print_debug_info)
+    {
+      comm->barrier();
+      std::cout << "p=" << myRank << " | lidRemap = " << lidRemap << std::endl;
+      std::cout << "p=" << myRank << " | IJK = " << IJK << std::endl;
+    }
 
     //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
     //tp_object_factory->getMap()->describe(debug,Teuchos::VERB_EXTREME);
