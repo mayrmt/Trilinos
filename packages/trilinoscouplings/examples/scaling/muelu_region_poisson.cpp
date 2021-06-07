@@ -546,16 +546,6 @@ int main(int argc, char *argv[]) {
     {
       out << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
-      /* First we extract some basic data */
-      Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
-      Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
-      const size_t num_regions = mesh->getNumElementBlocks();
-
-      // Find region interface nodes (and their owners)
-      // std::vector<stk::mesh::EntityVector> interface_nodes;
-      // interface_nodes.resize(num_regions);
-      // std::vector<Teuchos::Array<int>> interface_node_pids;
-      // interface_node_pids.resize(num_regions);
       computeInterfaceNodes(mesh, print_debug_info, out, numDofsPerNode, quasiRegionNodeGIDs, quasiRegionDofGIDs);
 
     } // if(mesh_refinements>0 && !delete_parent_elements)
