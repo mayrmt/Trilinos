@@ -264,6 +264,21 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
   return lidRemap;
 }
 
+// Convert a STK node entity into a node LID
+panzer::LocalOrdinal getLIDfromSTKNode(Teuchos::RCP<stk::mesh::BulkData> bulk_data,
+    const stk::mesh::Entity& node)
+{
+  return bulk_data->local_id(node);
+}
+
+// Convert a STK node entity into a node GID
+panzer::GlobalOrdinal getGIDfromSTKNode(Teuchos::RCP<stk::mesh::BulkData> bulk_data,
+    const stk::mesh::Entity& node)
+{
+  // Need to subtract 1 since STK starts node numbering with 1 (instead of 0)
+  return bulk_data->identifier(node) - 1;
+}
+
 /* Compute list of nodes to be sent/received by each rank when duplicating the region interface nodes
 
 We use STK's Selector to find nodes at region interfaces.
