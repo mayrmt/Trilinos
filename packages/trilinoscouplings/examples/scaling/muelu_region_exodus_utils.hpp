@@ -279,6 +279,24 @@ panzer::GlobalOrdinal getGIDfromSTKNode(Teuchos::RCP<stk::mesh::BulkData> bulk_d
   return bulk_data->identifier(node) - 1;
 }
 
+void printNodeCoordinates(Teuchos::RCP<const panzer_stk::STK_Interface> mesh)
+{
+  using GO = panzer::GlobalOrdinal;
+
+  mesh->getComm()->barrier();
+  const int myRank = mesh->getComm()->getRank();
+
+  stk::mesh::EntityVector nodes;
+  stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
+  stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, mesh->getMetaData()->locally_owned_part(), nodes);
+  for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx)
+  {
+    const GO node_gid = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
+    double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
+    std::cout << "p=" << myRank << " | node " << node_gid << ": (" << nodeCoord[0] << ", " << nodeCoord[1] << ", " << nodeCoord[2] << ")" << std::endl;
+  }
+}
+
 /* Compute list of nodes to be sent/received by each rank when duplicating the region interface nodes
 
 We use STK's Selector to find nodes at region interfaces.
