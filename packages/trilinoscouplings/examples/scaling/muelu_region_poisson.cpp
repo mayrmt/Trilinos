@@ -585,12 +585,18 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    stk::mesh::EntityVector nodes;
-    stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
-    stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, mesh->getMetaData()->locally_owned_part(), nodes);
-    for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx) {
-      double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
-      std::cout << "p=" << myRank << " | node " << nodeIdx << ": (" << nodeCoord[0] << ", " << nodeCoord[1] << ", " << nodeCoord[2] << ")" << std::endl; 
+    if (print_debug_info)
+    {
+      comm->barrier();
+      stk::mesh::EntityVector nodes;
+      stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
+      stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, mesh->getMetaData()->locally_owned_part(), nodes);
+      for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx)
+      {
+        const GO node_gid = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
+        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
+        std::cout << "p=" << myRank << " | node " << node_gid << ": (" << nodeCoord[0] << ", " << nodeCoord[1] << ", " << nodeCoord[2] << ")" << std::endl;
+      }
     }
 
     if (myRank == 0 && mesh_refinements)
