@@ -563,7 +563,7 @@ int main(int argc, char *argv[]) {
     panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[myRank],localIds,vertices);
     //mesh->getElementVertices(elements,myRank,vertices);
 
-    std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
+    std::cout<<"Printing LID panzer to LID stk mapping: "<<std::endl;
     findPanzer2StkMapping( mesh, dofManager, vertices);
 
 
