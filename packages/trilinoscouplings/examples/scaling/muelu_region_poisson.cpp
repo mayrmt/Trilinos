@@ -563,6 +563,10 @@ int main(int argc, char *argv[]) {
     panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[myRank],localIds,vertices);
     //mesh->getElementVertices(elements,myRank,vertices);
 
+    std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
+    findPanzer2StkMapping( mesh, dofManager, vertices);
+
+
     if(dump_element_vertices)
     {
       for(unsigned int ielem=0; ielem<vertices.extent(0); ++ielem)
@@ -574,7 +578,6 @@ int main(int argc, char *argv[]) {
           out << ")" << std::endl;
         }
     }
-
 
 
     if(print_debug_info)
@@ -617,7 +620,7 @@ int main(int argc, char *argv[]) {
     }
 
     //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
-    //tp_object_factory->getMap()->describe(debug,Teuchos::VERB_EXTREME);
+    //tp_object_factory->getMap()->describe(out,Teuchos::VERB_EXTREME);
 
     RCP<Map> quasiRegionRowMap = Teuchos::null;
     RCP<Map> regionRowMap = Teuchos::null;
