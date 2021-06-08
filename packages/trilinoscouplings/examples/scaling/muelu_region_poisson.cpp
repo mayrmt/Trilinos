@@ -563,8 +563,8 @@ int main(int argc, char *argv[]) {
     panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[myRank],localIds,vertices);
     //mesh->getElementVertices(elements,myRank,vertices);
 
-    std::cout<<"Printing LID panzer to LID stk mapping: "<<std::endl;
-    findPanzer2StkMapping( mesh, dofManager, vertices);
+    std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
+    Teuchos::Array< GO > panzerLID2stkGID = findPanzer2StkMapping( mesh, dofManager, vertices);
 
 
     if(dump_element_vertices)
@@ -611,11 +611,17 @@ int main(int argc, char *argv[]) {
     LO numElmInRegion = (IJK[0]+1)*(IJK[1]+1)*(IJK[2]+1);
 
     Teuchos::Array<LO> lidRemap = grabLIDsGIDsLexOrder(IJK, elemRemap, dofLID, dofManager, numElmInRegion );
+    Teuchos::Array<GO> gidStkRemap( lidRemap.size(), -1 );
+    for( int i=0; i<gidStkRemap.size(); i++){
+      if(lidRemap[i] < panzerLID2stkGID.size() )
+        gidStkRemap[i] = panzerLID2stkGID[ lidRemap[i] ];
+    }
 
     if (print_debug_info)
     {
       comm->barrier();
       std::cout << "p=" << myRank << " | lidRemap = " << lidRemap << std::endl;
+      std::cout << "p=" << myRank << " | gidStkRemap = " << gidStkRemap << std::endl;
       std::cout << "p=" << myRank << " | IJK = " << IJK << std::endl;
     }
 
