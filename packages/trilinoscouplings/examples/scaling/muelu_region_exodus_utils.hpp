@@ -355,6 +355,8 @@ void computeInterfaceNodes(
   using GlobalOrdinal = GO;
   using Node = NT;
 
+  using Teuchos::Array;
+
   auto comm = mesh->getComm();
 
   const int myRank = comm->getRank();
@@ -369,16 +371,19 @@ void computeInterfaceNodes(
   Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
   const size_t num_regions = mesh->getNumElementBlocks();
 
-  std::vector<stk::mesh::EntityVector> interface_nodes;
+  Array<Array<GO>> interface_nodes;
   interface_nodes.resize(num_regions);
-  std::vector<Teuchos::Array<int>> interface_node_pids;
+  Array<stk::mesh::EntityVector> interface_nodes_stk;
+  interface_nodes_stk.resize(num_regions);
+  Array<Array<int>> interface_node_pids;
   interface_node_pids.resize(num_regions);
 
   for (size_t my_region_id = 0; my_region_id < num_regions; ++my_region_id)
   {
     stk::mesh::Part* my_region = mesh->getElementBlockPart(eBlocks[my_region_id]);
-    stk::mesh::EntityVector& my_interface_nodes = interface_nodes[my_region_id];
-    Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[my_region_id];
+    Array<GO>& my_interface_nodes = interface_nodes[my_region_id];
+    stk::mesh::EntityVector& my_interface_nodes_stk = interface_nodes_stk[my_region_id];
+    Array<int>& my_interface_node_pids = interface_node_pids[my_region_id];
 
     for (size_t other_region_id = 0; other_region_id < num_regions; ++other_region_id)
     {
@@ -389,11 +394,18 @@ void computeInterfaceNodes(
         stk::mesh::Selector block_intersection = *my_region & *other_region;
 
         // Compute intersection and add to list of my interface nodes
-        stk::mesh::EntityVector current_interface_nodes;
-        bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes);
-        my_interface_nodes.insert(my_interface_nodes.end(), current_interface_nodes.begin(), current_interface_nodes.end());
+        stk::mesh::EntityVector current_interface_nodes_stk;
+        bulk_data->get_entities(stk::topology::NODE_RANK, block_intersection, current_interface_nodes_stk);
+        my_interface_nodes_stk.insert(my_interface_nodes_stk.end(), current_interface_nodes_stk.begin(), current_interface_nodes_stk.end());
 
-        Teuchos::Array<int> pid_list(current_interface_nodes.size(), static_cast<int>(other_region_id));
+        // Convert STK entities to unique GIDs
+        Array<GO> current_interface_node_GIDs;
+        current_interface_node_GIDs.reserve(current_interface_nodes_stk.size());
+        for (const auto& node : current_interface_nodes_stk)
+          current_interface_node_GIDs.push_back(getGIDfromSTKNode(bulk_data, node));
+        my_interface_nodes.insert(my_interface_nodes.end(), current_interface_node_GIDs.begin(), current_interface_node_GIDs.end());
+
+        Array<int> pid_list(current_interface_nodes_stk.size(), static_cast<int>(other_region_id));
         my_interface_node_pids.insert(my_interface_node_pids.end(), pid_list.begin(), pid_list.end());
       }
     }
@@ -402,34 +414,40 @@ void computeInterfaceNodes(
   // Print region interface nodes
   if (print_debug_info)
   {
-    for (size_t region_id_one = 0; region_id_one < num_regions; ++region_id_one)
-    {
-      std::cout << "Interface nodes of region " << eBlocks[region_id_one] << ":\n";
-      for (const auto& node : interface_nodes[region_id_one])
-        std::cout << "  " << node;
-      std::cout << "\n" << std::endl;
-    }
+    comm->barrier();
+    std::cout << "p=" << myRank << " | Interface nodes of region " << eBlocks[myRank] << ":\n";
+    for (const auto& node : interface_nodes[myRank])
+      std::cout << "  " << node;
+    std::cout << "\n" << std::endl;
   }
 
-  Teuchos::Array<GlobalOrdinal> sendGIDs; // GIDs of nodes
-  Teuchos::Array<int> sendPIDs; // Target
+  Array<GO> sendGIDs; // GIDs of nodes
+  Array<LO> sendLIDs; // LIDs of nodes
+  Array<int> sendPIDs; // Target processor
 
-  Teuchos::Array<GO> receiveGIDs;
-  Teuchos::Array<int> receivePIDs;
+  Array<GO> receiveGIDs; // GIDs of nodes
+  Array<LO> receiveLIDs; // LIDs of nodes
+  Array<int> receivePIDs; // Source processor
 
-  Teuchos::Array<LO> receiveLIDs;
-  Teuchos::Array<LO> sendLIDs;
-  Teuchos::Array<LO> interfaceLIDs;
+  Array<LO> interfaceLIDs;
+
+  stk::mesh::Part* my_own_region = mesh->getElementBlockPart(eBlocks[myRank]);
+  stk::mesh::Selector select_myself = *my_own_region;
+  stk::mesh::EntityVector my_region_nodes;
+  bulk_data->get_entities(stk::topology::NODE_RANK, select_myself, my_region_nodes);
+  LO new_lid = static_cast<LO>(my_region_nodes.size() - 1);
 
   size_t regionIdx = myRank;
   {
-    const stk::mesh::EntityVector& my_interface_nodes = interface_nodes[regionIdx];
-    const Teuchos::Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
+    const Array<GO>& my_interface_nodes = interface_nodes[regionIdx];
+    const stk::mesh::EntityVector& my_interface_nodes_stk = interface_nodes_stk[regionIdx];
+    const Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
     for (size_t node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
     {
-      const stk::mesh::Entity& node = my_interface_nodes[node_idx];
-      const unsigned node_owner = mesh->entityOwnerRank(node);
-      // std::cout << "p=" << myRank << " | node " << node << " owned by proc " << node_owner << std::endl;
+      const GO node_gid = my_interface_nodes[node_idx];
+      const stk::mesh::Entity& node = my_interface_nodes_stk[node_idx];
+      const unsigned node_owner = bulk_data->parallel_owner_rank(node);
+      std::cout << "p=" << myRank << " | node " << node_gid << " owned by proc " << node_owner << std::endl;
 
       if (myRank != node_owner)
       {
@@ -437,7 +455,7 @@ void computeInterfaceNodes(
         bool found_it = false;
         for (const auto& node_gid : receiveGIDs)
         {
-          if (static_cast<GO>(mesh->elementGlobalId(node)) == node_gid)
+          if (my_interface_nodes[node_idx] == node_gid)
           {
             found_it = true;
             break;
@@ -446,15 +464,18 @@ void computeInterfaceNodes(
 
         if (!found_it)
         {
-          receiveLIDs.push_back(node.local_offset());
-          receiveGIDs.push_back(static_cast<GO>(mesh->elementGlobalId(node)));
+          // LID needs to be created, so increment the last LID to append the received DOF/Node.
+          ++new_lid;
+          receiveLIDs.push_back(new_lid);
+          receiveGIDs.push_back(my_interface_nodes[node_idx]);
           receivePIDs.push_back(node_owner);
         }
       }
-      else if (myRank == node_owner)
+      // else if (myRank == node_owner && getLIDfromSTKNode(bulk_data, node) != -Teuchos::ScalarTraits<LO>::one())
+      else //if (getLIDfromSTKNode(bulk_data, node) != -Teuchos::ScalarTraits<LO>::one())
       {
-        sendLIDs.push_back(node.local_offset());
-        sendGIDs.push_back(static_cast<GO>(mesh->elementGlobalId(node)));
+        sendLIDs.push_back(getLIDfromSTKNode(bulk_data, node));
+        sendGIDs.push_back(my_interface_nodes[node_idx]);
         sendPIDs.push_back(my_interface_node_pids[node_idx]);
       }
     }
@@ -508,8 +529,11 @@ void computeInterfaceNodes(
     GO nodeGID = -Teuchos::ScalarTraits<GO>::one();
     for (size_t localNodeIdx = 0; localNodeIdx < numLocalCompositeNodes; ++localNodeIdx)
     {
-      nodeGID = static_cast<GO>(mesh->elementGlobalId(my_nodes[localNodeIdx]));
-      quasiRegionNodeGIDs[localNodeIdx] = nodeGID;
+      // Double-check for STK's weird numbering scheme which does NOT start with zero
+      TEUCHOS_ASSERT(my_nodes[localNodeIdx].local_offset()!=Teuchos::ScalarTraits<LO>::zero());
+      TEUCHOS_ASSERT(bulk_data->identifier(my_nodes[localNodeIdx])!=Teuchos::ScalarTraits<GO>::zero());
+
+      quasiRegionNodeGIDs[localNodeIdx] = getGIDfromSTKNode(bulk_data, my_nodes[localNodeIdx]);
       // for (int dof = 0; dof < numDofsPerNode; ++dof)
       //   quasiRegionDofGIDs[localNodeIdx * numDofsPerNode + dof] = nodeGID * numDofsPerNode + dof;
     }
