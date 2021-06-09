@@ -130,7 +130,10 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
     return -1;
 }
 
-void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices, Teuchos::Array<panzer::LocalOrdinal> &elemRemap, Teuchos::Array<panzer::LocalOrdinal> &IJK)
+void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
+        Teuchos::Array<panzer::LocalOrdinal> &elemRemap,
+        Teuchos::Array<panzer::LocalOrdinal> &IJK,
+        Teuchos::Array<panzer::LocalOrdinal> &regionIJK)
 {
   int iter = 0;
   int ielem = 0;
@@ -193,6 +196,9 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices, Teuchos::A
       }
     }
   }
+  regionIJK[0] = IJK[0] + 1;
+  regionIJK[1] = IJK[1] + 1;
+  regionIJK[2] = IJK[2] + 1;
   return;
 }
 
