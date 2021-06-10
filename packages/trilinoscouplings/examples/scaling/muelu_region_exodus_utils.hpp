@@ -285,37 +285,43 @@ panzer::GlobalOrdinal getGIDfromSTKNode(Teuchos::RCP<stk::mesh::BulkData> bulk_d
   return bulk_data->identifier(node) - 1;
 }
 
-Teuchos::Array< panzer::GlobalOrdinal > findPanzer2StkMapping(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
-        Teuchos::RCP<panzer::GlobalIndexer> dofManager,
-        Kokkos::DynRankView<double,PHX::Device> vertices)
+void findPanzer2StkMapping(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
+                           Teuchos::RCP<panzer::GlobalIndexer>           dofManager,
+                           Kokkos::DynRankView<double,PHX::Device>       vertices,
+                           Teuchos::Array< panzer::LocalOrdinal >        &panzerLID2stkLID,
+                           Teuchos::Array< panzer::GlobalOrdinal >       &panzerLID2stkGID)
 {
   using GO = panzer::GlobalOrdinal;
   using LO = panzer::LocalOrdinal;
 
   auto dofLID = dofManager->getLIDs();
 
+  std::vector<std::string> eBlocks;
+  mesh->getElementBlockNames(eBlocks);
 
   mesh->getComm()->barrier();
   const int myRank = mesh->getComm()->getRank();
 
   stk::mesh::EntityVector nodes;
   stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
-  stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, mesh->getMetaData()->locally_owned_part(), nodes);
-  Teuchos::Array<GO> panzer2stk(nodes.size(),-1);
-      for(unsigned int ielem=0; ielem<vertices.extent(0); ++ielem){
-        for(unsigned int ivert=0; ivert<vertices.extent(1); ++ivert){
-          //std::cout<< dofLID(ielem,ivert) << " : " << ielem << " " << ivert << " : " << vertices(ielem,ivert,0) << " " << vertices(ielem,ivert,1) << " " << vertices(ielem,ivert,2) <<std::endl;
-          for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx)
-          {
-            double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
-            if(nodeCoord[0] == vertices(ielem,ivert,0) && nodeCoord[1] == vertices(ielem,ivert,1) && nodeCoord[2] == vertices(ielem,ivert,2) ){
-              panzer2stk[ dofLID(ielem,ivert) ] = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
-            }
-          }
+  stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
+  mesh->getBulkData()->get_entities(stk::topology::NODE_RANK, *myRegion, nodes);
+
+  panzerLID2stkLID.resize(nodes.size(),-1);
+  panzerLID2stkGID.resize(nodes.size(),-1);
+  for(unsigned int ielem=0; ielem<vertices.extent(0); ++ielem){
+    for(unsigned int ivert=0; ivert<vertices.extent(1); ++ivert){
+      for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx){
+        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
+        if(nodeCoord[0] == vertices(ielem,ivert,0) && nodeCoord[1] == vertices(ielem,ivert,1) && nodeCoord[2] == vertices(ielem,ivert,2) ){
+          panzerLID2stkLID[ dofLID(ielem,ivert) ] = getLIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
+          panzerLID2stkGID[ dofLID(ielem,ivert) ] = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
         }
       }
-      std::cout << "p=" << myRank <<" | "<< panzer2stk << std::endl;
-      return panzer2stk;
+    }
+  }
+  std::cout << "p=" << myRank <<" | "<< panzerLID2stkGID << std::endl;
+  return;
 }
 
 void printNodeCoordinates(Teuchos::RCP<const panzer_stk::STK_Interface> mesh)
