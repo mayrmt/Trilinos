@@ -429,7 +429,7 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
     procsPerDim[2] = galeriList.get<GO>("mz");
   }
 
-  const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
+  // const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
 
   // Rule for boundary duplication
   // For any two ranks that share an interface:
@@ -471,7 +471,7 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
                    quasiRegionGIDs, quasiRegionCoordGIDs, compositeToRegionLIDs,
                    interfaceGIDs, interfaceLIDsData);
 
-  const LO numSend = static_cast<LO>(sendGIDs.size());
+  // const LO numSend = static_cast<LO>(sendGIDs.size());
 
   // std::cout << "p=" << myRank << " | numSend=" << numSend << std::endl;
             // << ", numReceive=" << numReceive << std::endl;
