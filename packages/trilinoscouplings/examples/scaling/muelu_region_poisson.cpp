@@ -67,6 +67,7 @@
 #include "SetupRegionVector_def.hpp"
 #include "SetupRegionMatrix_def.hpp"
 #include "SetupRegionHierarchy_def.hpp"
+#include "SolveRegionHierarchy_def.hpp"
 
 // Shards headers
 #include "Shards_CellTopology.hpp"
@@ -564,9 +565,14 @@ int main(int argc, char *argv[]) {
     //mesh->getElementVertices(elements,myRank,vertices);
 
     std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
-    Teuchos::Array< LO > panzerLID2stkLID;
-    Teuchos::Array< GO > panzerLID2stkGID;
+    Array<LO> panzerLID2stkLID;
+    Array<GO> panzerLID2stkGID;
     findPanzer2StkMapping( mesh, dofManager, vertices, panzerLID2stkLID, panzerLID2stkGID);
+    Array<LO> stk2panzerLID(panzerLID2stkLID.size());
+    // Array<GO> stk2panzerGID(panzerLID2stkGID.size());
+    for(size_t idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
+      stk2panzerLID[panzerLID2stkLID[idx]] = idx;
+    }
 
 
     if(dump_element_vertices)
@@ -648,10 +654,6 @@ int main(int argc, char *argv[]) {
       quasiRegionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
       regionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
     }
-
-    comm->barrier();
-    std::cout << "About to exit(0) ..." << std::endl;
-    exit(0);
 
 
 
@@ -766,63 +768,63 @@ int main(int argc, char *argv[]) {
     ae_tm.getAsObject<panzer::Traits::Jacobian>()->evaluate(input);
 
 
-    /**********************************************************************************/
-    /************************************ LINEAR SOLVER *******************************/
-    /**********************************************************************************/
+    // /**********************************************************************************/
+    // /************************************ LINEAR SOLVER *******************************/
+    // /**********************************************************************************/
 
-    // TODO: this goes away once we finish getting the runtime errors in the region driver section sorted
-    tm = Teuchos::null;
-    tm = rcp(new Teuchos::TimeMonitor(*Teuchos::TimeMonitor::getNewTimer("Driver: 5 - Linear Solver")));
+    // // TODO: this goes away once we finish getting the runtime errors in the region driver section sorted
+    // tm = Teuchos::null;
+    // tm = rcp(new Teuchos::TimeMonitor(*Teuchos::TimeMonitor::getNewTimer("Driver: 5 - Linear Solver")));
 
-    // convert generic linear object container to tpetra container
-    Teuchos::RCP<panzer::TpetraLinearObjContainer<ST,LO,GO> > tp_container = Teuchos::rcp_dynamic_cast<panzer::TpetraLinearObjContainer<ST,LO,GO> >(container);
+    // // convert generic linear object container to tpetra container
+    // Teuchos::RCP<panzer::TpetraLinearObjContainer<ST,LO,GO> > tp_container = Teuchos::rcp_dynamic_cast<panzer::TpetraLinearObjContainer<ST,LO,GO> >(container);
 
 
-    Teuchos::RCP<MueLu::TpetraOperator<ST,LO,GO,NT> > mueLuPreconditioner;
+    // Teuchos::RCP<MueLu::TpetraOperator<ST,LO,GO,NT> > mueLuPreconditioner;
 
-    if(xmlFileName.size())
-    {
-      mueLuPreconditioner = MueLu::CreateTpetraPreconditioner(Teuchos::rcp_dynamic_cast<Tpetra::Operator<ST,LO,GO,NT> >(tp_container->get_A()), xmlFileName);
-    }
-    else
-    {
-      Teuchos::ParameterList mueLuParamList;
-      if(print_debug_info)
-      {
-        mueLuParamList.set("verbosity", "high");
-      }
-      else
-      {
-        mueLuParamList.set("verbosity", "low");
-      }
-      mueLuParamList.set("max levels", 3);
-      mueLuParamList.set("coarse: max size", 10);
-      mueLuParamList.set("multigrid algorithm", "sa");
-      mueLuPreconditioner = MueLu::CreateTpetraPreconditioner(Teuchos::rcp_dynamic_cast<Tpetra::Operator<ST,LO,GO,NT> >(tp_container->get_A()), mueLuParamList);
-    }
+    // if(xmlFileName.size())
+    // {
+    //   mueLuPreconditioner = MueLu::CreateTpetraPreconditioner(Teuchos::rcp_dynamic_cast<Tpetra::Operator<ST,LO,GO,NT> >(tp_container->get_A()), xmlFileName);
+    // }
+    // else
+    // {
+    //   Teuchos::ParameterList mueLuParamList;
+    //   if(print_debug_info)
+    //   {
+    //     mueLuParamList.set("verbosity", "high");
+    //   }
+    //   else
+    //   {
+    //     mueLuParamList.set("verbosity", "low");
+    //   }
+    //   mueLuParamList.set("max levels", 3);
+    //   mueLuParamList.set("coarse: max size", 10);
+    //   mueLuParamList.set("multigrid algorithm", "sa");
+    //   mueLuPreconditioner = MueLu::CreateTpetraPreconditioner(Teuchos::rcp_dynamic_cast<Tpetra::Operator<ST,LO,GO,NT> >(tp_container->get_A()), mueLuParamList);
+    // }
 
-    // Setup the linear solve
-    Belos::LinearProblem<ST,MV,OP> problem(tp_container->get_A(), tp_container->get_x(), tp_container->get_f());
-    problem.setLeftPrec(mueLuPreconditioner);
-    problem.setProblem();
+    // // Setup the linear solve
+    // Belos::LinearProblem<ST,MV,OP> problem(tp_container->get_A(), tp_container->get_x(), tp_container->get_f());
+    // problem.setLeftPrec(mueLuPreconditioner);
+    // problem.setProblem();
 
-    Teuchos::RCP<Teuchos::ParameterList> pl_belos = Teuchos::rcp(new Teuchos::ParameterList());
-    pl_belos->set("Maximum Iterations", 1000);
-    pl_belos->set("Convergence Tolerance", 1e-9);
+    // Teuchos::RCP<Teuchos::ParameterList> pl_belos = Teuchos::rcp(new Teuchos::ParameterList());
+    // pl_belos->set("Maximum Iterations", 1000);
+    // pl_belos->set("Convergence Tolerance", 1e-9);
 
-    // build the solver
-    Belos::PseudoBlockGmresSolMgr<ST,MV,OP> solver(Teuchos::rcpFromRef(problem), pl_belos);
+    // // build the solver
+    // Belos::PseudoBlockGmresSolMgr<ST,MV,OP> solver(Teuchos::rcpFromRef(problem), pl_belos);
 
-    // solve the linear system
-    solver.solve();
+    // // solve the linear system
+    // solver.solve();
 
-    // scale by -1 since we solved a residual correction
-    tp_container->get_x()->scale(-1.0);
-    if(print_debug_info)
-    {
-      debug << "Solution local length: " << tp_container->get_x()->getLocalLength() << std::endl;
-      out << "Solution norm: " << tp_container->get_x()->norm2() << std::endl;
-    }
+    // // scale by -1 since we solved a residual correction
+    // tp_container->get_x()->scale(-1.0);
+    // if(print_debug_info)
+    // {
+    //   debug << "Solution local length: " << tp_container->get_x()->getLocalLength() << std::endl;
+    //   out << "Solution norm: " << tp_container->get_x()->norm2() << std::endl;
+    // }
 
     /**********************************************************************************/
     /************************************ REGION DRIVER *******************************/
@@ -834,7 +836,7 @@ int main(int argc, char *argv[]) {
       using Teuchos::TimeMonitor;
       using Teuchos::ParameterList;
 
-      RCP<const Teuchos::Comm<int> > comm = Teuchos::DefaultComm<int>::getComm(); // TODO: the use of Teuchos::Comm and Teuchos::MpiComm is conflicting, even though everything builds fine
+      RCP<const Teuchos::Comm<int> > comm = Teuchos::DefaultComm<int>::getComm();
 
       // =========================================================================
       // Convenient definitions
@@ -867,93 +869,101 @@ int main(int argc, char *argv[]) {
       smootherParams[0]->set("smoother: Chebyshev boost factor", smootherChebyBoostFactor);
 
       bool useUnstructured = false;
-      Array<LO> unstructuredRanks = Teuchos::fromStringToArray<LO>(unstructured);
-      for(int idx = 0; idx < unstructuredRanks.size(); ++idx) {
-        if(unstructuredRanks[idx] == myRank) {useUnstructured = true;}
+      // Array<LO> unstructuredRanks = Teuchos::fromStringToArray<LO>(unstructured);
+      // for(int idx = 0; idx < unstructuredRanks.size(); ++idx) {
+      //   if(unstructuredRanks[idx] == myRank) {useUnstructured = true;}
+      // }
+      Array<LO> lNodesPerDim(3);
+      for(int idx = 0; idx < 3; ++idx) {
+        lNodesPerDim[idx] = regionIJK[idx] + 1;
       }
 
-      // Retrieve matrix parameters (they may have been changed on the command line)
-      // [for instance, if we changed matrix type from 2D to 3D we need to update nz]
-      //ParameterList galeriList = galeriParameters.GetParameterList();
+      // Extract matrix, vectors and other auxiliary data from Panzer
+      Teuchos::RCP<panzer::TpetraLinearObjContainer<ST,LO,GO> > tp_container =
+        Teuchos::rcp_dynamic_cast<panzer::TpetraLinearObjContainer<ST,LO,GO> >(container);
+      RCP<Matrix> A = MueLu::TpetraCrs_To_XpetraMatrix<SC,LO,GO,NO>(tp_container->get_A());
+      RCP<Vector> X = Xpetra::toXpetra(tp_container->get_x());
+      RCP<Vector> B = Xpetra::toXpetra(tp_container->get_f());
 
-      // =========================================================================
-      // Problem construction
-      // =========================================================================
-      //std::ostringstream galeriStream;
-#ifdef HAVE_MUELU_OPENMP
-      //std::string node_name = Node::name();
-      //if(!comm->getRank() && !node_name.compare("OpenMP/Wrapper"))
-      //  galeriStream<<"OpenMP Max Threads = "<<omp_get_max_threads()<<std::endl;
-#endif
+      // The map of X, B and rowMap of A should all be the same
+      // and correspond to the "dofMap" of the structured region
+      // driver. The nodeMap is built assuming this map stores
+      // dof associated with a single node consecutively.
+      RCP<const Map> dofMap = X->getMap();
 
+      Array<GO> dofGIDs = dofMap->getNodeElementList();
+      Array<GO> nodeGIDs(dofGIDs.size() / numDofsPerNode);
+      for(size_t nodeIdx = 0; nodeIdx < nodeGIDs.size(); ++nodeIdx) {
+        nodeGIDs[nodeIdx] = dofGIDs[nodeIdx*numDofsPerNode] / numDofsPerNode;
+      }
+      RCP<Map> nodeMap = Xpetra::MapFactory<LO,GO,NO>::Build(dofMap->lib(),
+                                                             Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
+                                                             nodeGIDs.view(0, nodeGIDs.size()),
+                                                             dofMap->getIndexBase(),
+                                                             dofMap->getComm());
+      RCP<Xpetra::MultiVector<double,LO,GO,NO> > coordinates =
+        Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(nodeMap, numDimensions, false);
+      std::cout << "p=" << myRank << " | dofGIDs size: " << dofGIDs.size() << std::endl;
+      std::cout << "p=" << myRank << " | nodeGIDs size: " << nodeGIDs.size() << std::endl;
+      Array<ArrayRCP<double> > coordsData(numDimensions);
+      for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+        coordsData[dimIdx] = coordinates->getDataNonConst(dimIdx);
+      }
+      RCP<Xpetra::MultiVector<SC,LO,GO,NO> > nullspace =
+        Xpetra::MultiVectorFactory<SC,LO,GO,NO>::Build(dofMap, 1, false);
+      nullspace->putScalar(one);
 
-      comm->barrier();
-      Teuchos::RCP<Teuchos::StackedTimer> stacked_timer;
-      if(useStackedTimer)
-        stacked_timer = rcp(new Teuchos::StackedTimer("MueLu_Driver"));
-      Teuchos::TimeMonitor::setStackedTimer(stacked_timer);
-      RCP<TimeMonitor> globalTimeMonitor = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: S - Global Time")));
-      RCP<TimeMonitor> tm                = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 1 - Build Composite Matrix")));
-
-
-      RCP<Matrix> A;
-      RCP<Map>    nodeMap, dofMap;
-      RCP<Vector> X, B;
-      RCP<MultiVector>           nullspace;
-      RCP<RealValuedMultiVector> coordinates;
-
-      Teuchos::Array<LO> lNodesPerDim(3); // TODO: this can't be removed so easily yet...
-
-      // Create map and coordinates
-      // TODO: get a nodeMap and coordinates from Panzer
-      // if (matrixType == "Laplace3D" || matrixType == "Brick3D" || matrixType == "Elasticity3D") {
-      //  numDimensions = 3;
-      //  nodeMap = Galeri::Xpetra::CreateMap<LO, GO, Node>(xpetraParameters.GetLib(), "Cartesian3D", comm, galeriList);
-      //  coordinates = Galeri::Xpetra::Utils::CreateCartesianCoordinates<double,LO,GO,Map,RealValuedMultiVector>("3D", nodeMap, galeriList);
+      std::cout << "p=" << myRank << " | stk2panzerLIDs (" << stk2panzerLID.size()
+                << "): " << stk2panzerLID() << std::endl;
+      stk::mesh::EntityVector nodes;
+      stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
+      stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
+      mesh->getBulkData()->get_entities(stk::topology::NODE_RANK, *myRegion, nodes);
+      std::cout << "p=" << myRank << " | nodes size: " << nodes.size() << std::endl;
+      // for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx){
+      //   double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
+      //   for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+      //     coordsData[dimIdx][stk2panzerLID[nodeIdx]] = nodeCoord[dimIdx];
+      //   }
       // }
 
-      dofMap = Xpetra::MapFactory<LO,GO,Node>::Build(nodeMap, numDofsPerNode);
-      //A = tp_container->get_A(); // TODO: convert this
-      //nullspace = Pr->BuildNullspace(); // TODO: get a nullspace
+      // ArrayView<const GO> dofGIDs = dofMap->getNodeElementList();
+      // Array<int> rankIDs(dofGIDs.size());
+      // Array<GO>  dofLIDs(dofGIDs.size());
+      // for(int localIdx = 0; localIdx < dofMap->getNodeNumElements(); ++localIdx) {
+      //   dofMap->getGlobalElement(compositeIdx);
+      // }
 
       X = VectorFactory::Build(dofMap);
       B = VectorFactory::Build(dofMap);
 
-      if(serialRandom) {
-        //Build the seed on rank zero and broadcast it.
-        size_t localNumElements = 0;
-        if(comm->getRank() == 0) {
-          localNumElements = static_cast<size_t>(dofMap->getGlobalNumElements());
-        }
-        RCP<Map> serialMap = MapFactory::Build(dofMap->lib(),
-                                               dofMap->getGlobalNumElements(),
-                                               localNumElements,
-                                               0,
-                                               comm);
-        RCP<Vector> Xserial = VectorFactory::Build(serialMap);
-        Xserial->setSeed(251743369);
-        Xserial->randomize();
-        RCP<Import> randomnessImporter = ImportFactory::Build(serialMap, dofMap);
-        X->doImport(*Xserial, *randomnessImporter, Xpetra::INSERT);
-      } else {
-        // we set seed for reproducibility
-        Utilities::SetRandomSeed(*comm);
-        X->randomize();
-      }
+      // if(serialRandom) {
+      //   //Build the seed on rank zero and broadcast it.
+      //   size_t localNumElements = 0;
+      //   if(comm->getRank() == 0) {
+      //     localNumElements = static_cast<size_t>(dofMap->getGlobalNumElements());
+      //   }
+      //   RCP<Map> serialMap = MapFactory::Build(dofMap->lib(),
+      //                                          dofMap->getGlobalNumElements(),
+      //                                          localNumElements,
+      //                                          0,
+      //                                          comm);
+      //   RCP<Vector> Xserial = VectorFactory::Build(serialMap);
+      //   Xserial->setSeed(251743369);
+      //   Xserial->randomize();
+      //   RCP<Import> randomnessImporter = ImportFactory::Build(serialMap, dofMap);
+      //   X->doImport(*Xserial, *randomnessImporter, Xpetra::INSERT);
+      // } else {
+      //   // we set seed for reproducibility
+      //   Utilities::SetRandomSeed(*comm);
+      //   X->randomize();
+      // }
 
-      A->apply(*X, *B, Teuchos::NO_TRANS, one, zero);
+      // A->apply(*X, *B, Teuchos::NO_TRANS, one, zero);
 
       Teuchos::Array<typename STS::magnitudeType> norms(1);
       B->norm2(norms);
       B->scale(one/norms[0]);
-
-#ifdef MATLAB_COMPARE
-      Xpetra::IO<Scalar,LocalOrdinal,GlobalOrdinal,Node>::Write("Ax.mm",*B);
-      Xpetra::IO<Scalar,LocalOrdinal,GlobalOrdinal,Node>::Write("A.mm",*A);
-      B->putScalar(zero);
-      Xpetra::IO<Scalar,LocalOrdinal,GlobalOrdinal,Node>::Write("rhs.mm",*B);
-      Xpetra::IO<Scalar,LocalOrdinal,GlobalOrdinal,Node>::Write("x.mm",*X);
-#endif
 
       comm->barrier();
       tm = Teuchos::null;
@@ -998,7 +1008,7 @@ int main(int argc, char *argv[]) {
       Array<GO>  sendGIDs;
       Array<int> sendPIDs;
       Array<LO>  rNodesPerDim(3);
-      Array<LO>  compositeToRegionLIDs(nodeMap->getNodeNumElements()*numDofsPerNode);
+      Array<LO>  compositeToRegionLIDs(dofMap->getNodeNumElements());
       Array<GO>  quasiRegionGIDs;
       Array<GO>  quasiRegionCoordGIDs;
       Array<GO>  interfaceGIDs;
@@ -1140,6 +1150,8 @@ int main(int argc, char *argv[]) {
       // We don't need the composite operator on the fine level anymore. Free it!
       A = Teuchos::null;
 
+      exit(0);
+
       comm->barrier();
       tmLocal = Teuchos::null;
 
@@ -1270,151 +1282,9 @@ int main(int argc, char *argv[]) {
 
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 5 - Solve with V-cycle")));
 
-      {
-        //    std::cout << myRank << " | Running V-cycle ..." << std::endl;
-
-        TEUCHOS_TEST_FOR_EXCEPT_MSG(!(numLevels>0), "We require numLevel > 0. Probably, numLevel has not been set, yet.");
-
-        // We first use the non-level container variables to setup the fine grid problem.
-        // This is ok since the initial setup just mimics the application and the outer
-        // Krylov method.
-        //
-        // We switch to using the level container variables as soon as we enter the
-        // recursive part of the algorithm.
-        //
-
-        // Composite residual vector
-        RCP<Vector> compRes = VectorFactory::Build(dofMap, true);
-
-        // transform composite vectors to regional layout
-        Teuchos::RCP<Vector> quasiRegX;
-        Teuchos::RCP<Vector> regX;
-        compositeToRegional(X, quasiRegX, regX,
-                            revisedRowMap, rowImport);
-
-        RCP<Vector> quasiRegB;
-        RCP<Vector> regB;
-        compositeToRegional(B, quasiRegB, regB,
-                            revisedRowMap, rowImport);
-#ifdef DUMP_LOCALX_AND_A
-        FILE *fp;
-        char str[80];
-        sprintf(str,"theMatrix.%d",myRank);
-        fp = fopen(str,"w");
-        fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
-        LO numNzs = 0;
-        for (size_t kkk = 0; kkk < regionMats->getNodeNumRows(); kkk++) {
-          ArrayView<const LO> AAcols;
-          ArrayView<const SC> AAvals;
-          regionMats->getLocalRowView(kkk, AAcols, AAvals);
-          const int *Acols    = AAcols.getRawPtr();
-          const SC  *Avals = AAvals.getRawPtr();
-          numNzs += AAvals.size();
-        }
-        fprintf(fp, "%d %d %d\n",regionMats->getNodeNumRows(),regionMats->getNodeNumRows(),numNzs);
-
-        for (size_t kkk = 0; kkk < regionMats->getNodeNumRows(); kkk++) {
-          ArrayView<const LO> AAcols;
-          ArrayView<const SC> AAvals;
-          regionMats->getLocalRowView(kkk, AAcols, AAvals);
-          const int *Acols    = AAcols.getRawPtr();
-          const SC  *Avals = AAvals.getRawPtr();
-          LO RowLeng = AAvals.size();
-          for (LO kk = 0; kk < RowLeng; kk++) {
-            fprintf(fp, "%d %d %22.16e\n",kkk+1,Acols[kk]+1,Avals[kk]);
-          }
-        }
-        fclose(fp);
-        sprintf(str,"theX.%d",myRank);
-        fp = fopen(str,"w");
-        ArrayRCP<SC> lX= regX->getDataNonConst(0);
-        for (size_t kkk = 0; kkk < regionMats->getNodeNumRows(); kkk++) fprintf(fp, "%22.16e\n",lX[kkk]);
-        fclose(fp);
-#endif
-
-        RCP<Vector> regRes;
-        regRes = VectorFactory::Build(revisedRowMap, true);
-
-        /////////////////////////////////////////////////////////////////////////
-        // SWITCH TO RECURSIVE STYLE --> USE LEVEL CONTAINER VARIABLES
-        /////////////////////////////////////////////////////////////////////////
-
-        // Prepare output of residual norm to file
-        RCP<std::ofstream> log;
-        if (myRank == 0)
-        {
-          log = rcp(new std::ofstream(convergenceLog.c_str()));
-          (*log) << "# num procs = " << dofMap->getComm()->getSize() << "\n"
-              << "# iteration | res-norm (scaled=" << scaleResidualHist << ")\n"
-              << "#\n";
-          *log << std::setprecision(16) << std::scientific;
-        }
-
-        // Print type of residual norm to the screen
-        if (scaleResidualHist)
-          out << "Using scaled residual norm." << std::endl;
-        else
-          out << "Using unscaled residual norm." << std::endl;
-
-
-        // Richardson iterations
-        magnitude_type normResIni = Teuchos::ScalarTraits<magnitude_type>::zero();
-        const int old_precision = std::cout.precision();
-        std::cout << std::setprecision(8) << std::scientific;
-        int cycle = 0;
-
-        Teuchos::RCP<Vector> regCorrect;
-        regCorrect = VectorFactory::Build(revisedRowMap, true);
-        for (cycle = 0; cycle < maxIts; ++cycle)
-        {
-          const Scalar SC_ZERO = Teuchos::ScalarTraits<SC>::zero();
-          regCorrect->putScalar(SC_ZERO);
-          // Get Stuff out of Hierarchy
-          RCP<MueLu::Level> level = regHierarchy->GetLevel(0);
-          RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal> > regInterfaceScalings = level->Get<RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal> > >("regInterfaceScalings");
-          // check for convergence
-          {
-            ////////////////////////////////////////////////////////////////////////
-            // SWITCH BACK TO NON-LEVEL VARIABLES
-            ////////////////////////////////////////////////////////////////////////
-            computeResidual(regRes, regX, regB, regionMats, *smootherParams[0]);
-            scaleInterfaceDOFs(regRes, regInterfaceScalings, true);
-
-            compRes = VectorFactory::Build(dofMap, true);
-            regionalToComposite(regRes, compRes, rowImport);
-
-            typename Teuchos::ScalarTraits<Scalar>::magnitudeType normRes = compRes->norm2();
-            if(cycle == 0) { normResIni = normRes; }
-
-            if (scaleResidualHist)
-              normRes /= normResIni;
-
-            // Output current residual norm to screen (on proc 0 only)
-            out << cycle << "\t" << normRes << std::endl;
-            if (myRank == 0)
-              (*log) << cycle << "\t" << normRes << "\n";
-
-            if (normRes < tol)
-              break;
-          }
-
-          /////////////////////////////////////////////////////////////////////////
-          // SWITCH TO RECURSIVE STYLE --> USE LEVEL CONTAINER VARIABLES
-          /////////////////////////////////////////////////////////////////////////
-
-          bool zeroInitGuess = true;
-          scaleInterfaceDOFs(regRes, regInterfaceScalings, false);
-          vCycle(0, numLevels, cycleType, regHierarchy,
-                 regCorrect, regRes,
-                 smootherParams, zeroInitGuess, coarseSolverData, hierarchyData);
-
-          regX->update(one, *regCorrect, one);
-        }
-        out << "Number of iterations performed for this solve: " << cycle << std::endl;
-
-        std::cout << std::setprecision(old_precision);
-        std::cout.unsetf(std::ios::fixed | std::ios::scientific);
-      }
+      solveRegionProblem(tol, scaleResidualHist, maxIts, cycleType, convergenceLog,
+                         coarseSolverData, smootherParams, hierarchyData,
+                         regHierarchy, X, B);
 
       comm->barrier();
       tm = Teuchos::null;
@@ -1465,36 +1335,6 @@ int main(int argc, char *argv[]) {
       mesh->writeToExodus(filename.str());
     }
 
-    // compute the error of the finite element solution
-    /////////////////////////////////////////////////////////////
-
-    {
-      panzer::AssemblyEngineInArgs respInput(ghostCont,container);
-      respInput.alpha = 0;
-      respInput.beta = 1;
-
-      Teuchos::RCP<panzer::ResponseBase> l2_resp = errorResponseLibrary->getResponse<panzer::Traits::Residual>("L2 Error");
-      Teuchos::RCP<panzer::Response_Functional<panzer::Traits::Residual> > l2_resp_func = Teuchos::rcp_dynamic_cast<panzer::Response_Functional<panzer::Traits::Residual> >(l2_resp);
-      Teuchos::RCP<Thyra::VectorBase<double> > l2_respVec = Thyra::createMember(l2_resp_func->getVectorSpace());
-      l2_resp_func->setVector(l2_respVec);
-
-      /*
-      Teuchos::RCP<panzer::ResponseBase> h1_resp = errorResponseLibrary->getResponse<panzer::Traits::Residual>("H1 Error");
-      Teuchos::RCP<panzer::Response_Functional<panzer::Traits::Residual> > h1_resp_func = Teuchos::rcp_dynamic_cast<panzer::Response_Functional<panzer::Traits::Residual> >(h1_resp);
-      Teuchos::RCP<Thyra::VectorBase<double> > h1_respVec = Thyra::createMember(h1_resp_func->getVectorSpace());
-      h1_resp_func->setVector(h1_respVec);
-      */
-
-      errorResponseLibrary->addResponsesToInArgs<panzer::Traits::Residual>(respInput);
-      errorResponseLibrary->evaluate<panzer::Traits::Residual>(respInput);
-
-      out << "This is the Basis Order" << std::endl;
-      out << "Basis Order = " << discretization_order << std::endl;
-      out << "This is the L2 Error" << std::endl;
-      out << "L2 Error = " << sqrt(l2_resp_func->value) << std::endl;
-      //out << "This is the H1 Error" << std::endl;
-      //out << "H1 Error = " << sqrt(h1_resp_func->value) << std::endl;
-    }
 
     tm = Teuchos::null;
     globalTimeMonitor = Teuchos::null;
