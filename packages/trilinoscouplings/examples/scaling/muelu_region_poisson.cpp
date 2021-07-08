@@ -567,11 +567,24 @@ int main(int argc, char *argv[]) {
     std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
     Array<LO> panzerLID2stkLID;
     Array<GO> panzerLID2stkGID;
-    findPanzer2StkMapping( mesh, dofManager, vertices, panzerLID2stkLID, panzerLID2stkGID);
+    Array<GO> panzerLID2panzerGID;
+    findPanzer2StkMapping( mesh, dofManager, vertices, panzerLID2stkLID, panzerLID2stkGID,panzerLID2panzerGID);
     Array<LO> stk2panzerLID(panzerLID2stkLID.size());
     // Array<GO> stk2panzerGID(panzerLID2stkGID.size());
     for(size_t idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
       stk2panzerLID[panzerLID2stkLID[idx]] = idx;
+    }
+
+    Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
+    for(size_t idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
+      LO idxpanzer = -1;
+      for(size_t i = 0; i < panzerLID2stkGID.size(); ++i) {
+        if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
+            idxpanzer = i;
+            break;
+        }
+      }
+      quasiRegionDofGIDsPanzer[idxpanzer] = panzerLID2panzerGID[idxpanzer];
     }
 
 
@@ -608,7 +621,7 @@ int main(int argc, char *argv[]) {
     const int numElm = dofLID.extent(0);
     Teuchos::Array<LO> elemRemap(numElm,-1);
     Teuchos::Array<LO> elemIJK(3,1);// IJK counts for elements (one less than nodes).
-    Teuchos::Array<LO> regionIJK(3,1);// IJK counts for elements (one less than nodes).
+    Teuchos::Array<LO> regionIJK(3,1);// IJK counts for region format.
 
     reorderLexElem(vertices, elemRemap, elemIJK, regionIJK);
     if (print_debug_info)
@@ -875,7 +888,7 @@ int main(int argc, char *argv[]) {
       // }
       Array<LO> lNodesPerDim(3);
       for(int idx = 0; idx < 3; ++idx) {
-        lNodesPerDim[idx] = regionIJK[idx] + 1;
+        lNodesPerDim[idx] = regionIJK[idx];//TODO: regionIJK is region format. fix lNodesPerDim to be composite format?
       }
 
       // Extract matrix, vectors and other auxiliary data from Panzer
@@ -890,6 +903,16 @@ int main(int argc, char *argv[]) {
       // driver. The nodeMap is built assuming this map stores
       // dof associated with a single node consecutively.
       RCP<const Map> dofMap = X->getMap();
+
+      if (print_debug_info)
+      {
+        comm->barrier();
+        std::cout<<"dofMap: "<<std::endl;
+        sleep(1);
+        RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+        dofMap->describe(*my_out, Teuchos::VERB_EXTREME);
+        sleep(1);
+      }
 
       Array<GO> dofGIDs = dofMap->getNodeElementList();
       Array<GO> nodeGIDs(dofGIDs.size() / numDofsPerNode);
