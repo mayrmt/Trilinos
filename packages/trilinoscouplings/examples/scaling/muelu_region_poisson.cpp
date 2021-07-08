@@ -465,6 +465,9 @@ int main(int argc, char *argv[]) {
     // initialize data here that we will use for the region MG solver
     std::vector<GO> child_element_gids; // these don't always start at 0, and changes I'm making to Panzer keep changing this, so I'll store them for now
     std::vector<GO> child_element_region_gids;
+    Array<GO>  sendGIDs;
+    Array<int> sendPIDs;
+    Array<LO>  sendLIDs;
     Array<GO>  quasiRegionGIDs;
     // do not run region MG if we delete parent elements or if we do not refine the mesh regularly
     if(mesh_refinements>0 && !delete_parent_elements)
@@ -547,7 +550,8 @@ int main(int argc, char *argv[]) {
     {
       out << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
-      computeInterfaceNodes(mesh, print_debug_info, out, numDofsPerNode, quasiRegionNodeGIDs, quasiRegionDofGIDs);
+      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode, sendGIDs, sendPIDs, sendLIDs,
+                            quasiRegionNodeGIDs, quasiRegionDofGIDs);
 
     } // if(mesh_refinements>0 && !delete_parent_elements)
 
@@ -901,65 +905,46 @@ int main(int argc, char *argv[]) {
                                                              nodeGIDs.view(0, nodeGIDs.size()),
                                                              dofMap->getIndexBase(),
                                                              dofMap->getComm());
-      RCP<Xpetra::MultiVector<double,LO,GO,NO> > coordinates =
-        Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(nodeMap, numDimensions, false);
-      std::cout << "p=" << myRank << " | dofGIDs size: " << dofGIDs.size() << std::endl;
-      std::cout << "p=" << myRank << " | nodeGIDs size: " << nodeGIDs.size() << std::endl;
-      Array<ArrayRCP<double> > coordsData(numDimensions);
-      for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
-        coordsData[dimIdx] = coordinates->getDataNonConst(dimIdx);
-      }
+      // TODO: now we need to loop over the local coordinates
+      // they will then go through the composite to region
+      // mechanism. Although we could probably go directly to
+      // the region format?
+
       RCP<Xpetra::MultiVector<SC,LO,GO,NO> > nullspace =
         Xpetra::MultiVectorFactory<SC,LO,GO,NO>::Build(dofMap, 1, false);
       nullspace->putScalar(one);
 
       std::cout << "p=" << myRank << " | stk2panzerLIDs (" << stk2panzerLID.size()
                 << "): " << stk2panzerLID() << std::endl;
-      stk::mesh::EntityVector nodes;
+      // stk::mesh::EntityVector nodes;
       stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
       stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
-      mesh->getBulkData()->get_entities(stk::topology::NODE_RANK, *myRegion, nodes);
-      std::cout << "p=" << myRank << " | nodes size: " << nodes.size() << std::endl;
-      // for(size_t nodeIdx = 0; nodeIdx < nodes.size(); ++nodeIdx){
-      //   double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, nodes[nodeIdx]));
-      //   for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
-      //     coordsData[dimIdx][stk2panzerLID[nodeIdx]] = nodeCoord[dimIdx];
-      //   }
-      // }
+      // mesh->getBulkData()->get_entities(stk::topology::NODE_RANK, *myRegion, nodes);
+      RCP<Map> regionCoordMap = Xpetra::MapFactory<LO,GO,NO>::Build(dofMap->lib(),
+                                                                    Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
+                                                                    gidStkRemap.size(),
+                                                                    dofMap->getIndexBase(),
+                                                                    dofMap->getComm());
+      RCP<Xpetra::MultiVector<double,LO,GO,NO> > regionCoordinates =
+        Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(regionCoordMap, numDimensions, false);
+      Array<ArrayRCP<double> > regionCoordsData(numDimensions);
+      for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+        regionCoordsData[dimIdx] = regionCoordinates->getDataNonConst(dimIdx);
+      }
+      stk::mesh::Entity node;
+      for(size_t nodeIdx = 0; nodeIdx < gidStkRemap.size(); ++nodeIdx){
+        node = mesh->getBulkData()->get_entity(stk::topology::NODE_RANK, gidStkRemap[nodeIdx] + 1);
+        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, node));
+        for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+          regionCoordsData[dimIdx][nodeIdx] = nodeCoord[dimIdx];
+        }
+      }
 
-      // ArrayView<const GO> dofGIDs = dofMap->getNodeElementList();
-      // Array<int> rankIDs(dofGIDs.size());
-      // Array<GO>  dofLIDs(dofGIDs.size());
-      // for(int localIdx = 0; localIdx < dofMap->getNodeNumElements(); ++localIdx) {
-      //   dofMap->getGlobalElement(compositeIdx);
-      // }
+      // regionCoordinates->describe(out, Teuchos::VERB_EXTREME);
 
       X = VectorFactory::Build(dofMap);
+      X->putScalar(zero);
       B = VectorFactory::Build(dofMap);
-
-      // if(serialRandom) {
-      //   //Build the seed on rank zero and broadcast it.
-      //   size_t localNumElements = 0;
-      //   if(comm->getRank() == 0) {
-      //     localNumElements = static_cast<size_t>(dofMap->getGlobalNumElements());
-      //   }
-      //   RCP<Map> serialMap = MapFactory::Build(dofMap->lib(),
-      //                                          dofMap->getGlobalNumElements(),
-      //                                          localNumElements,
-      //                                          0,
-      //                                          comm);
-      //   RCP<Vector> Xserial = VectorFactory::Build(serialMap);
-      //   Xserial->setSeed(251743369);
-      //   Xserial->randomize();
-      //   RCP<Import> randomnessImporter = ImportFactory::Build(serialMap, dofMap);
-      //   X->doImport(*Xserial, *randomnessImporter, Xpetra::INSERT);
-      // } else {
-      //   // we set seed for reproducibility
-      //   Utilities::SetRandomSeed(*comm);
-      //   X->randomize();
-      // }
-
-      // A->apply(*X, *B, Teuchos::NO_TRANS, one, zero);
 
       Teuchos::Array<typename STS::magnitudeType> norms(1);
       B->norm2(norms);
@@ -969,6 +954,7 @@ int main(int argc, char *argv[]) {
       tm = Teuchos::null;
 
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 2 - Compute region data")));
+      if(myRank == 1) { std::cout << "Driver: 2 - Compute region data" << std::endl;}
 
       // Set aggregation type for each region
       std::string aggregationRegionType;
@@ -980,6 +966,8 @@ int main(int argc, char *argv[]) {
       }
 
       const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
+      std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
+                << ", lNodesPerDim: " << lNodesPerDim << std::endl;
 
       // Rule for boundary duplication
       // For any two ranks that share an interface:
@@ -1002,11 +990,9 @@ int main(int argc, char *argv[]) {
       // First we count how many nodes the region needs to send and receive
       // and allocate arrays accordingly
       Array<int> boundaryConditions;
-      int maxRegPerGID = 0;
+      int maxRegPerGID = eBlocks.size();
       int numInterfaces = 0;
       LO numLocalRegionNodes = 0;
-      Array<GO>  sendGIDs;
-      Array<int> sendPIDs;
       Array<LO>  rNodesPerDim(3);
       Array<LO>  compositeToRegionLIDs(dofMap->getNodeNumElements());
       Array<GO>  quasiRegionGIDs;
@@ -1015,19 +1001,18 @@ int main(int argc, char *argv[]) {
       Array<LO>  interfaceLIDsData;
 
       // TODO: finish generating the appropriate data that this function typically generates
-//      createRegionData(numDimensions, useUnstructured, numDofsPerNode,
-//                       gNodesPerDim(), lNodesPerDim(), procsPerDim(), nodeMap, dofMap,
-//                       maxRegPerGID, numLocalRegionNodes, boundaryConditions,
-//                       sendGIDs, sendPIDs, numInterfaces, rNodesPerDim,
-//                       quasiRegionGIDs, quasiRegionCoordGIDs, compositeToRegionLIDs,
-//                       interfaceGIDs, interfaceLIDsData);
+     createRegionData(numDimensions, useUnstructured,
+                      numDofsPerNode, lNodesPerDim(),
+                      nodeMap, dofMap, numLocalRegionNodes,
+                      sendGIDs, sendPIDs,
+                      numInterfaces, rNodesPerDim,
+                      quasiRegionGIDs, quasiRegionCoordGIDs,
+                      compositeToRegionLIDs,
+                      interfaceGIDs, interfaceLIDsData);
 
       const LO numSend = static_cast<LO>(sendGIDs.size());
 
       // std::cout << "p=" << myRank << " | numSend=" << numSend << std::endl;
-      // << ", numReceive=" << numReceive << std::endl;
-      // std::cout << "p=" << myRank << " | receiveGIDs: " << receiveGIDs << std::endl;
-      // std::cout << "p=" << myRank << " | receivePIDs: " << receivePIDs << std::endl;
       // std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
       // std::cout << "p=" << myRank << " | sendPIDs: " << sendPIDs << std::endl;
 
@@ -1065,8 +1050,10 @@ int main(int argc, char *argv[]) {
       tm = Teuchos::null;
 
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3 - Build Region Matrix")));
+      if(myRank == 1) { std::cout << "" << std::endl;}
 
       RCP<TimeMonitor> tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3.1 - Build Region Maps")));
+      if(myRank == 1) { std::cout << "" << std::endl;}
 
       Teuchos::RCP<const Xpetra::Map<LO,GO,NO> > rowMap, colMap;
       Teuchos::RCP<const Xpetra::Map<LO,GO,NO> > revisedRowMap, revisedColMap;
@@ -1100,6 +1087,7 @@ int main(int argc, char *argv[]) {
       comm->barrier();
       tmLocal = Teuchos::null;
       tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3.2 - Build Region Importers")));
+      if(myRank == 1) { std::cout << "Driver: 3.2 - Build Region Importers" << std::endl;}
 
       // Setup importers
       RCP<Import> rowImport;
@@ -1111,9 +1099,11 @@ int main(int argc, char *argv[]) {
       comm->barrier();
       tmLocal = Teuchos::null;
       tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3.3 - Import ghost GIDs")));
+      if(myRank == 1) { std::cout << "Driver: 3.3 - Import ghost GIDs" << std::endl;}
 
       Array<GO>  interfaceCompositeGIDs, interfaceRegionGIDs;
       ExtractListOfInterfaceRegionGIDs(revisedRowMap, interfaceLIDsData, interfaceRegionGIDs);
+      if(myRank == 1) { std::cout << "ExtractListOfInterfaceRegionGIDs: done" << std::endl;}
 
       RCP<Xpetra::MultiVector<LO, LO, GO, NO> > regionsPerGIDWithGhosts;
       RCP<Xpetra::MultiVector<GO, LO, GO, NO> > interfaceGIDsMV;
@@ -1122,14 +1112,19 @@ int main(int argc, char *argv[]) {
                                  lNodesPerDim, sendGIDs, sendPIDs, interfaceLIDsData,
                                  regionsPerGIDWithGhosts, interfaceGIDsMV);
 
+      if(myRank == 1) { std::cout << "MakeRegionPerGIDWithGhosts: done" << std::endl;}
+
       Teuchos::ArrayRCP<LO> regionMatVecLIDs;
       RCP<Import> regionInterfaceImporter;
       SetupMatVec(interfaceGIDsMV, regionsPerGIDWithGhosts, revisedRowMap, rowImport,
                   regionMatVecLIDs, regionInterfaceImporter);
 
+      if(myRank == 1) { std::cout << "SetupMatVec: done" << std::endl;}
+
       comm->barrier();
       tmLocal = Teuchos::null;
       tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3.4 - Build QuasiRegion Matrix")));
+      if(myRank == 1) { std::cout << "Driver: 3.4 - Build QuasiRegion Matrix" << std::endl;}
 
       std::cout << "About to create quasi region matrix" << std::endl;
       RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node> > quasiRegionMats;
@@ -1141,6 +1136,7 @@ int main(int argc, char *argv[]) {
       comm->barrier();
       tmLocal = Teuchos::null;
       tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 3.5 - Build Region Matrix")));
+      if(myRank == 1) { std::cout << "Driver: 3.5 - Build Region Matrix" << std::endl;}
 
       RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node> > regionMats;
       MakeRegionMatrices(Teuchos::rcp_dynamic_cast<CrsMatrixWrap>(A), A->getRowMap(), rowMap,
@@ -1159,12 +1155,13 @@ int main(int argc, char *argv[]) {
       tm = Teuchos::null;
 
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 4 - Build Region Hierarchy")));
+      if(myRank == 1) { std::cout << "Driver: 4 - Build Region Hierarchy" << std::endl;}
 
       // Setting up parameters before hierarchy construction
       // These need to stay in the driver as they would be provide by an app
       Array<int> regionNodesPerDim;
       RCP<MultiVector> regionNullspace;
-      RCP<RealValuedMultiVector> regionCoordinates;
+      // RCP<RealValuedMultiVector> regionCoordinates;
 
       // Set mesh structure data
       regionNodesPerDim = rNodesPerDim;
@@ -1174,11 +1171,11 @@ int main(int argc, char *argv[]) {
       regionNullspace->doImport(*nullspace, *rowImport, Xpetra::INSERT);
       regionNullspace->replaceMap(revisedRowMap);
 
-      // create region coordinates vector
-      regionCoordinates = Xpetra::MultiVectorFactory<real_type,LO,GO,NO>::Build(quasiRegCoordMap, // TODO: this can't remain commented
-                                                                                coordinates->getNumVectors());
-      regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
-      regionCoordinates->replaceMap(regCoordMap);
+      // // create region coordinates vector
+      // regionCoordinates = Xpetra::MultiVectorFactory<real_type,LO,GO,NO>::Build(quasiRegCoordMap, // TODO: this can't remain commented
+      //                                                                           coordinates->getNumVectors());
+      // regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
+      // regionCoordinates->replaceMap(regCoordMap);
 
       using Tpetra_CrsMatrix = Tpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
       using Tpetra_MultiVector = Tpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
@@ -1222,6 +1219,7 @@ int main(int argc, char *argv[]) {
       }
 
       tmLocal = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("CreateXpetraPreconditioner: Hierarchy")));
+      if(myRank == 1) { std::cout << "CreateXpetraPreconditioner: Hierarchy" << std::endl;}
 
       // Create multigrid hierarchy part 1
       RCP<Hierarchy> regHierarchy  = MueLu::CreateXpetraPreconditioner(regionMats, *mueluParams);
@@ -1281,6 +1279,7 @@ int main(int argc, char *argv[]) {
       // }
 
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 5 - Solve with V-cycle")));
+      if(myRank == 1) { std::cout << "Driver: 5 - Solve with V-cycle" << std::endl;}
 
       solveRegionProblem(tol, scaleResidualHist, maxIts, cycleType, convergenceLog,
                          coarseSolverData, smootherParams, hierarchyData,
