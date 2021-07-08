@@ -131,9 +131,9 @@ int checkNodeNeighbor(Kokkos::DynRankView<double,PHX::Device> vertices, const un
 }
 
 void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
-        Teuchos::Array<panzer::LocalOrdinal> &elemRemap,
-        Teuchos::Array<panzer::LocalOrdinal> &IJK,
-        Teuchos::Array<panzer::LocalOrdinal> &regionIJK)
+                    Teuchos::Array<panzer::LocalOrdinal> &elemRemap,
+                    Teuchos::Array<panzer::LocalOrdinal> &IJK,
+                    Teuchos::Array<panzer::LocalOrdinal> &regionIJK)
 {
   int iter = 0;
   int ielem = 0;
@@ -203,10 +203,10 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
 }
 
 Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer::LocalOrdinal> IJK,
-        Teuchos::Array<panzer::LocalOrdinal> elemRemap,
-        const Kokkos::View< const panzer::LocalOrdinal**, Kokkos::LayoutRight, PHX::Device > dofLID,
-        Teuchos::RCP<panzer::GlobalIndexer> dofManager,
-        int nLID )
+                                                          Teuchos::Array<panzer::LocalOrdinal> elemRemap,
+                                                          const Kokkos::View< const panzer::LocalOrdinal**, Kokkos::LayoutRight, PHX::Device > dofLID,
+                                                          Teuchos::RCP<panzer::GlobalIndexer> dofManager,
+                                                          int nLID )
 {
   using LO = panzer::LocalOrdinal;
   using GO = panzer::GlobalOrdinal;
@@ -402,8 +402,10 @@ intersection of all possible region pairs to identify all interface nodes of a g
 void computeInterfaceNodes(
     Teuchos::RCP<const panzer_stk::STK_Interface> mesh, ///< STK mesh object with all element blocks etc.
     const bool print_debug_info, ///< flag to switch on/off debug outpu
-    Teuchos::FancyOStream& out, ///< output stream
     const int numDofsPerNode, ///< number of DOFs per mesh node
+    Teuchos::Array<panzer::GlobalOrdinal>& sendGIDs,
+    Teuchos::Array<int>& sendPIDs,
+    Teuchos::Array<panzer::LocalOrdinal>& sendLIDs,
     Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionNodeGIDs, ///< This rank's node GIDs in quasiRegion format
     Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs ///< This rank's DOF GIDs in quasiRegion format
     )
@@ -480,15 +482,15 @@ void computeInterfaceNodes(
   if (print_debug_info)
   {
     comm->barrier();
-    std::cout << "p=" << myRank << " | Interface nodes of region " << eBlocks[myRank] << ":\n";
+    std::ostringstream msg;
+    msg << "p=" << myRank << " | Interface nodes of region " << eBlocks[myRank] << ":\n";
     for (const auto& node : interface_nodes[myRank])
-      std::cout << "  " << node;
-    std::cout << "\n" << std::endl;
+      msg << "  " << node;
+    msg << "\n" << std::endl;
+    std::cout << msg.str();
   }
 
-  Array<GO> sendGIDs; // GIDs of nodes
-  Array<LO> sendLIDs; // LIDs of nodes
-  Array<int> sendPIDs; // Target processor
+  // Array<LO> sendLIDs;
 
   Array<GO> receiveGIDs; // GIDs of nodes
   Array<LO> receiveLIDs; // LIDs of nodes
@@ -512,7 +514,6 @@ void computeInterfaceNodes(
       const GO node_gid = my_interface_nodes[node_idx];
       const stk::mesh::Entity& node = my_interface_nodes_stk[node_idx];
       const unsigned node_owner = bulk_data->parallel_owner_rank(node);
-      std::cout << "p=" << myRank << " | node " << node_gid << " owned by proc " << node_owner << std::endl;
 
       if (myRank != node_owner)
       {
@@ -551,7 +552,7 @@ void computeInterfaceNodes(
 
   if (print_debug_info)
   {
-    out << std::endl;
+    std::cout << std::endl;
     for (int rank = 0; rank < num_regions; ++rank)
     {
       comm->barrier();
@@ -697,5 +698,24 @@ void setupRegionMaps(
   // For now, column map = row map
   quasiRegionColMap = quasiRegionRowMap;
   regionColMap = regionRowMap;
+
+}
+
+template <class LocalOrdinal, class GlobalOrdinal, class Node>
+void createRegionData(const int numDimensions,
+                      const bool useUnstructured, const int numDofsPerNode,
+                      const Teuchos::ArrayView<LocalOrdinal>  lNodesPerDim,
+                      const Teuchos::RCP<Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node> > nodeMap,
+                      const Teuchos::RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node> > dofMap,
+                      LocalOrdinal& numLocalRegionNodes,
+                      Teuchos::Array<GlobalOrdinal>& sendGIDs, ///< GIDs of nodes
+                      Teuchos::Array<int>& sendPIDs,
+                      int& numInterfaces,
+                      Teuchos::Array<LocalOrdinal>&  rNodesPerDim,
+                      Teuchos::Array<GlobalOrdinal>& quasiRegionGIDs,
+                      Teuchos::Array<GlobalOrdinal>& quasiRegionCoordGIDs,
+                      Teuchos::Array<LocalOrdinal>&  compositeToRegionLIDs,
+                      Teuchos::Array<GlobalOrdinal>& interfaceGIDs,
+                      Teuchos::Array<LocalOrdinal>&  interfaceLIDsData) {
 
 }

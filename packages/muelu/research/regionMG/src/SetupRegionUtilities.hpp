@@ -1174,7 +1174,7 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
 \brief Extract list of region GIDs of all interface DOFs from the region row map
 
 Starting from the known list of \c interfaceRegionLIDs, we know, which entries in the \c regionRowMap
-refert to interface DOFs, so we can grab them and stick them into the list of \c interfaceRegionGIDs.
+refer to interface DOFs, so we can grab them and stick them into the list of \c interfaceRegionGIDs.
 */
 template <class LocalOrdinal, class GlobalOrdinal, class Node>
 void ExtractListOfInterfaceRegionGIDs(
@@ -1182,7 +1182,7 @@ void ExtractListOfInterfaceRegionGIDs(
     const Teuchos::Array<LocalOrdinal>& interfaceRegionLIDs, Teuchos::Array<GlobalOrdinal>& interfaceRegionGIDs)
 {
   interfaceRegionGIDs.resize(interfaceRegionLIDs.size());
-  for(LocalOrdinal interfaceIdx = 0; interfaceIdx < static_cast<LocalOrdinal>(interfaceRegionLIDs.size()); ++interfaceIdx) {
+  for(size_t interfaceIdx = 0; interfaceIdx < interfaceRegionLIDs.size(); ++interfaceIdx) {
     interfaceRegionGIDs[interfaceIdx] =
       regionRowMap->getGlobalElement(interfaceRegionLIDs[interfaceIdx]);
   }
