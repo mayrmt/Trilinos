@@ -98,8 +98,10 @@ void computeInverseDiagonal(RCP<Teuchos::ParameterList> params,
                  const RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node> > regionMats,
                  const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport) ///< row importer in region layout [in]
 {
-#include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Region Relaxation Setup")));
 
   RCP<Vector> diagReg = VectorFactory::Build(revisedRowMap, true);
@@ -131,12 +133,15 @@ void jacobiIterate(RCP<Teuchos::ParameterList> smootherParams,
 		   bool& zeroInitGuess
     )
 {
-#include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using SC = Scalar;
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Region Jacobi Iterate")));
 
   // const Scalar SC_ZERO = Teuchos::ScalarTraits<Scalar>::zero();
-  const Scalar SC_ONE = Teuchos::ScalarTraits<Scalar>::one();
+  const SC SC_ONE = Teuchos::ScalarTraits<SC>::one();
 
   const int maxIter    = smootherParams->get<int>   ("smoother: sweeps");
   const double damping = smootherParams->get<double>("smoother: damping");
@@ -180,7 +185,11 @@ void GSIterate(RCP<Teuchos::ParameterList> smootherParams,
                bool sgs = false
                )
 {
-#include "Xpetra_UseShortNames.hpp"
+  using SC = Scalar;
+  using LO = LocalOrdinal;
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+
   using Teuchos::TimeMonitor;
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Region Gauss-Seidel Iterate")));
 
@@ -204,7 +213,6 @@ void GSIterate(RCP<Teuchos::ParameterList> smootherParams,
 
     // update the solution and the residual
 
-    using MT = typename Teuchos::ScalarTraits<SC>::magnitudeType;
     RCP<Vector> delta = VectorFactory::Build(regionMats->getRowMap(), true);
     ArrayRCP<SC> ldelta = delta->getDataNonConst(0);
     ArrayRCP<SC> OneregX = regX->getDataNonConst(0);
@@ -264,9 +272,10 @@ typename Teuchos::ScalarTraits<Scalar>::magnitudeType
 calcNorm2(RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& regVec,
           const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport)
 {
-#include "Xpetra_UseShortNames.hpp"
-  const RCP<const Map> mapComp = rowImport->getSourceMap();
-  RCP<Vector> compVec = VectorFactory::Build(mapComp, true);
+  const RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node> > mapComp =
+    rowImport->getSourceMap();
+  RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> > compVec =
+    Xpetra::VectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>::Build(mapComp, true);
   regionalToComposite(regVec, compVec, rowImport);
   typename Teuchos::ScalarTraits<Scalar>::magnitudeType norm = compVec->norm2();
 
@@ -291,13 +300,16 @@ dotProd(RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& regX,
         RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& regY,
         const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport)
 {
-#include "Xpetra_UseShortNames.hpp"
-  const RCP<const Map> mapComp = rowImport->getSourceMap();
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+
+  const RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node> > mapComp =
+    rowImport->getSourceMap();
   RCP<Vector> compX = VectorFactory::Build(mapComp, true);
   RCP<Vector> compY = VectorFactory::Build(mapComp, true);
   regionalToComposite(regX, compX, rowImport);
   regionalToComposite(regY, compY, rowImport);
-  SC dotVal = compX->dot(*compY);
+  Scalar dotVal = compX->dot(*compY);
 
   return dotVal;
 } // dotProd
@@ -311,7 +323,9 @@ powerMethod(RCP<Teuchos::ParameterList> params,
             const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport,
             const int numIters)
 {
-#include "Xpetra_UseShortNames.hpp"
+  using SC = Scalar;
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
 
   RCP<Vector> diag_inv = params->get<RCP<Vector> >("smoothers: inverse diagonal");
   const SC SC_ZERO = Teuchos::ScalarTraits<Scalar>::zero();
@@ -361,7 +375,6 @@ void chebyshevSetup(RCP<Teuchos::ParameterList> params,
                    const RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> > regionInterfaceScaling,
                    const RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node> > revisedRowMap,
                    const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport) {
-#include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Region Chebyshev Setup")));
 
@@ -389,7 +402,9 @@ void chebyshevIterate(RCP<Teuchos::ParameterList> smootherParams,
                       bool& zeroInitGuess ///< Use a zero vector as initial guess?
                       )
 {
-#include "Xpetra_UseShortNames.hpp"
+  using Vector = Xpetra::Vector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+
   using Teuchos::TimeMonitor;
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Region Chebyshev Iterate")));
 

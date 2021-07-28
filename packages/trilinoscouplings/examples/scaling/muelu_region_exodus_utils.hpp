@@ -140,7 +140,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
   int ielemStart = ielem;
   int ielemStart0 = ielem;
   bool doThis = true, nextElem = true;
-  bool icount = true, jcount = true, kcount = true;
+  bool /* icount = true, */ jcount = true, kcount = true;
   while( doThis == true){
     nextElem = true;
     ielemStart = ielem;
@@ -148,7 +148,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
 
     while(nextElem){
        nextElem = false;
-       for( int en=0; en<vertices.extent(0); ++en){
+       for(int en=0; en<vertices.extent_int(0); ++en){
          int output = checkNodeNeighbor( vertices, ielem, en);
          if(output == 6){
            if(en == ielemStart){
@@ -171,7 +171,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
 
     //find next start:
     bool moveZ = true;
-    for( int en=0; en<vertices.extent(0); ++en){// Move Y
+    for( int en=0; en<vertices.extent_int(0); ++en){// Move Y
       int output = checkNodeNeighbor( vertices, ielemStart, en);
       if(output == 4){
         ielem = en;
@@ -183,7 +183,7 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
     }
     if(moveZ){
       jcount = false;
-      for( int en=0; en<vertices.extent(0); ++en){// If no Move Y, then move Z.
+      for( int en=0; en<vertices.extent_int(0); ++en){// If no Move Y, then move Z.
         int output = checkNodeNeighbor( vertices, ielemStart0, en);
         if(output == 1){
           ielem = en;
@@ -212,7 +212,7 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
   using GO = panzer::GlobalOrdinal;
 
   std::cout<<"Grab LID in order from Elements"<<std::endl;
-  const int numLID = dofLID.extent(1);
+  // const int numLID = dofLID.extent(1);
   Teuchos::Array<LO> lidRemap(nLID, -1);
   Teuchos::Array<LO> gidRemap(nLID, -1);
   std::vector< GO > elmGIDs;
@@ -293,7 +293,6 @@ void findPanzer2StkMapping(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
                            Teuchos::Array< panzer::GlobalOrdinal >       &panzerLID2panzerGID)
 {
   using GO = panzer::GlobalOrdinal;
-  using LO = panzer::LocalOrdinal;
 
   auto dofLID = dofManager->getLIDs();
   std::vector< GO > elmGIDs;
@@ -325,19 +324,18 @@ void findPanzer2StkMapping(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
       }
     }
   }
-  std::cout << "p=" << myRank <<" | "<< panzerLID2stkGID << std::endl;
+  // std::cout << "p=" << myRank <<" | "<< panzerLID2stkGID << std::endl;
   return;
 }
 
 void findPanzer2StkMappingOwned(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
-                           Teuchos::RCP<panzer::GlobalIndexer>           dofManager,
-                           Kokkos::DynRankView<double,PHX::Device>       vertices,
-                           Teuchos::Array< panzer::LocalOrdinal >        &panzerLID2stkLID,
-                           Teuchos::Array< panzer::GlobalOrdinal >       &panzerLID2stkGID,
-                           Teuchos::Array< panzer::GlobalOrdinal >       &panzerLID2panzerGID)
+                                Teuchos::RCP<panzer::GlobalIndexer>           dofManager,
+                                Kokkos::DynRankView<double,PHX::Device>       vertices,
+                                Teuchos::Array< panzer::LocalOrdinal >       &panzerLID2stkLID,
+                                Teuchos::Array< panzer::GlobalOrdinal >      &panzerLID2stkGID,
+                                Teuchos::Array< panzer::GlobalOrdinal >      &panzerLID2panzerGID)
 {
   using GO = panzer::GlobalOrdinal;
-  using LO = panzer::LocalOrdinal;
 
   auto dofLID = dofManager->getLIDs();
   std::vector< GO > elmGIDs;
@@ -346,7 +344,7 @@ void findPanzer2StkMappingOwned(Teuchos::RCP<const panzer_stk::STK_Interface> me
   mesh->getElementBlockNames(eBlocks);
 
   mesh->getComm()->barrier();
-  const int myRank = mesh->getComm()->getRank();
+  // const int myRank = mesh->getComm()->getRank();
 
   stk::mesh::EntityVector nodes;
   stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
@@ -370,7 +368,7 @@ void findPanzer2StkMappingOwned(Teuchos::RCP<const panzer_stk::STK_Interface> me
       }
     }
   }
-  std::cout << "p=" << myRank <<" | "<< panzerLID2stkGID << std::endl;
+  // std::cout << "p=" << myRank << " | local panzerLID2stkGID: " << panzerLID2stkGID << std::endl;
   return;
 }
 
@@ -406,21 +404,20 @@ void computeInterfaceNodes(
     Teuchos::Array<panzer::GlobalOrdinal>& sendGIDs,
     Teuchos::Array<int>& sendPIDs,
     Teuchos::Array<panzer::LocalOrdinal>& sendLIDs,
+    Teuchos::Array<panzer::GlobalOrdinal>& receiveGIDs,
+    Teuchos::Array<int>& receivePIDs,
+    Teuchos::Array<panzer::LocalOrdinal>& receiveLIDs,
     Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionNodeGIDs, ///< This rank's node GIDs in quasiRegion format
     Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs ///< This rank's DOF GIDs in quasiRegion format
     )
 {
   // Panzer types
-  using ST = double;
   using LO = panzer::LocalOrdinal;
   using GO = panzer::GlobalOrdinal;
-  using NT = panzer::TpetraNodeType;
 
   // MueLu types
-  using Scalar = ST;
   using LocalOrdinal = LO;
   using GlobalOrdinal = GO;
-  using Node = NT;
 
   using Teuchos::Array;
 
@@ -432,7 +429,8 @@ void computeInterfaceNodes(
   std::vector<std::string> eBlocks;
   mesh->getElementBlockNames(eBlocks);
 
-  if (numProcs != eBlocks.size()) throw("Number of MPI ranks and number of regions do not match.");
+  if (numProcs != static_cast<int>(eBlocks.size()))
+    throw("Number of MPI ranks and number of regions do not match.");
 
   Teuchos::RCP<stk::mesh::BulkData> bulk_data = mesh->getBulkData();
   Teuchos::RCP<stk::mesh::MetaData> meta_data = mesh->getMetaData();
@@ -492,9 +490,9 @@ void computeInterfaceNodes(
 
   // Array<LO> sendLIDs;
 
-  Array<GO> receiveGIDs; // GIDs of nodes
-  Array<LO> receiveLIDs; // LIDs of nodes
-  Array<int> receivePIDs; // Source processor
+  // Array<GO> receiveGIDs; // GIDs of nodes
+  // Array<LO> receiveLIDs; // LIDs of nodes
+  // Array<int> receivePIDs; // Source processor
 
   Array<LO> interfaceLIDs;
 
@@ -509,13 +507,13 @@ void computeInterfaceNodes(
     const Array<GO>& my_interface_nodes = interface_nodes[regionIdx];
     const stk::mesh::EntityVector& my_interface_nodes_stk = interface_nodes_stk[regionIdx];
     const Array<int>& my_interface_node_pids = interface_node_pids[regionIdx];
-    for (size_t node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
+    for (typename Array<GO>::size_type node_idx = 0; node_idx < my_interface_nodes.size(); ++node_idx)
     {
-      const GO node_gid = my_interface_nodes[node_idx];
+      // const GO node_gid = my_interface_nodes[node_idx];
       const stk::mesh::Entity& node = my_interface_nodes_stk[node_idx];
       const unsigned node_owner = bulk_data->parallel_owner_rank(node);
 
-      if (myRank != node_owner)
+      if (myRank != static_cast<int>(node_owner))
       {
         // Make sure to add GIDs only once
         bool found_it = false;
@@ -547,16 +545,16 @@ void computeInterfaceNodes(
     }
   }
 
-  const LO numSend = static_cast<LO>(sendGIDs.size());
+  // const LO numSend = static_cast<LO>(sendGIDs.size());
   const LO numReceive = static_cast<LO>(receiveGIDs.size());
 
   if (print_debug_info)
   {
     std::cout << std::endl;
-    for (int rank = 0; rank < num_regions; ++rank)
+    for (size_t rank = 0; rank < num_regions; ++rank)
     {
       comm->barrier();
-      if (rank == myRank)
+      if (static_cast<int>(rank) == myRank)
       {
         std::cout << "p=" << myRank << " | sendLIDs = " << sendLIDs << std::endl;
         std::cout << "p=" << myRank << " | sendGIDs = " << sendGIDs << std::endl;
@@ -592,18 +590,18 @@ void computeInterfaceNodes(
   }
 
   {
-    GO nodeGID = -Teuchos::ScalarTraits<GO>::one();
-    for (size_t localNodeIdx = 0; localNodeIdx < numLocalCompositeNodes; ++localNodeIdx)
+    // GO nodeGID = -Teuchos::ScalarTraits<GO>::one();
+    for (LO localNodeIdx = 0; localNodeIdx < numLocalCompositeNodes; ++localNodeIdx)
     {
       // Double-check for STK's weird numbering scheme which does NOT start with zero
-      TEUCHOS_ASSERT(my_nodes[localNodeIdx].local_offset()!=Teuchos::ScalarTraits<LO>::zero());
-      TEUCHOS_ASSERT(bulk_data->identifier(my_nodes[localNodeIdx])!=Teuchos::ScalarTraits<GO>::zero());
+      TEUCHOS_ASSERT(my_nodes[localNodeIdx].local_offset()!=Teuchos::ScalarTraits<stk::mesh::Entity::entity_value_type>::zero());
+      TEUCHOS_ASSERT(bulk_data->identifier(my_nodes[localNodeIdx])!=Teuchos::ScalarTraits<stk::mesh::EntityId>::zero());
 
       quasiRegionNodeGIDs[localNodeIdx] = getGIDfromSTKNode(bulk_data, my_nodes[localNodeIdx]);
       // for (int dof = 0; dof < numDofsPerNode; ++dof)
       //   quasiRegionDofGIDs[localNodeIdx * numDofsPerNode + dof] = nodeGID * numDofsPerNode + dof;
     }
-    for (size_t receiveNodeIdx = 0; receiveNodeIdx < numReceive; ++ receiveNodeIdx)
+    for (LO receiveNodeIdx = 0; receiveNodeIdx < numReceive; ++ receiveNodeIdx)
     {
       quasiRegionNodeGIDs[numLocalCompositeNodes + receiveNodeIdx] = receiveGIDs[receiveNodeIdx];
       // for (int dof = 0; dof < numDofsPerNode; ++dof)
@@ -676,24 +674,20 @@ void setupRegionMaps(
     )
 {
   // Panzer types
-  using ST = double;
   using LO = panzer::LocalOrdinal;
   using GO = panzer::GlobalOrdinal;
-  using NT = panzer::TpetraNodeType;
+  using NO = panzer::TpetraNodeType;
 
-  // MueLu types
-  using Scalar = ST;
-  using LocalOrdinal = LO;
-  using GlobalOrdinal = GO;
-  using Node = NT;
-
-#include <Xpetra_UseShortNames.hpp>
-
-  quasiRegionRowMap = Xpetra::MapFactory<LO,GO,Node>::Build(Xpetra::UseTpetra, Teuchos::OrdinalTraits<GO>::invalid(),
-      quasiRegionDofGIDs(), Teuchos::OrdinalTraits<GO>::zero(), comm);
-
-  regionRowMap = Xpetra::MapFactory<LO,GO,Node>::Build(quasiRegionRowMap->lib(), Teuchos::OrdinalTraits<GO>::invalid(),
-      quasiRegionDofGIDs.size(), quasiRegionRowMap->getIndexBase(), quasiRegionRowMap->getComm());
+  quasiRegionRowMap = Xpetra::MapFactory<LO,GO,NO>::Build(Xpetra::UseTpetra,
+                                                          Teuchos::OrdinalTraits<GO>::invalid(),
+                                                          quasiRegionDofGIDs(),
+                                                          Teuchos::OrdinalTraits<GO>::zero(),
+                                                          comm);
+  regionRowMap = Xpetra::MapFactory<LO,GO,NO>::Build(quasiRegionRowMap->lib(),
+                                                     Teuchos::OrdinalTraits<GO>::invalid(),
+                                                     quasiRegionDofGIDs.size(),
+                                                     quasiRegionRowMap->getIndexBase(),
+                                                     quasiRegionRowMap->getComm());
 
   // For now, column map = row map
   quasiRegionColMap = quasiRegionRowMap;

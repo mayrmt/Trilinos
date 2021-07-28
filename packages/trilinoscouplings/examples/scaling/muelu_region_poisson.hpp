@@ -243,19 +243,19 @@ namespace panzer {
 }
 
 namespace Example {
-  
+
   // ******************************************************* //
   // ******************** BC STRATEGIES ******************** //
   // ******************************************************* //
   template <typename EvalT>
   class BCStrategy_Dirichlet_Constant : public panzer::BCStrategy_Dirichlet_DefaultImpl<EvalT> {
-  public:    
-    
+  public:
+
     BCStrategy_Dirichlet_Constant(const panzer::BC& bc, const Teuchos::RCP<panzer::GlobalData>& global_data);
-    
+
     void setup(const panzer::PhysicsBlock& side_pb,
                const Teuchos::ParameterList& user_data);
-    
+
     void buildAndRegisterEvaluators(PHX::FieldManager<panzer::Traits>& fm,
                                     const panzer::PhysicsBlock& pb,
                                     const panzer::ClosureModelFactory_TemplateManager<panzer::Traits>& factory,
@@ -292,16 +292,16 @@ namespace Example {
     // unique residual name
     this->residual_name = "Residual_" + this->m_bc.identifier();
 
-    // map residual to dof 
+    // map residual to dof
     this->residual_to_dof_names_map[residual_name] = this->m_bc.equationSetName();
 
     // map residual to target field
     this->residual_to_target_field_map[residual_name] = "Constant_" + this->m_bc.equationSetName();
 
-    // find the basis for this dof 
+    // find the basis for this dof
     const vector<pair<string,RCP<panzer::PureBasis> > >& dofs = side_pb.getProvidedDOFs();
 
-    for (vector<pair<string,RCP<panzer::PureBasis> > >::const_iterator dof_it = 
+    for (vector<pair<string,RCP<panzer::PureBasis> > >::const_iterator dof_it =
         dofs.begin(); dof_it != dofs.end(); ++dof_it) {
       if (dof_it->first == this->m_bc.equationSetName())
         this->basis = dof_it->second;
@@ -334,7 +334,7 @@ namespace Example {
       p.set("Data Layout", basis->functional);
       p.set("Value", this->m_bc.params()->template get<double>("Value"));
 
-      RCP< PHX::Evaluator<panzer::Traits> > op = 
+      RCP< PHX::Evaluator<panzer::Traits> > op =
           rcp(new panzer::Constant<EvalT,panzer::Traits>(p));
 
       this->template registerEvaluator<EvalT>(fm, op);
@@ -351,9 +351,9 @@ namespace Example {
     buildBCStrategy(const panzer::BC& bc,const Teuchos::RCP<panzer::GlobalData>& global_data) const
     {
 
-      Teuchos::RCP<panzer::BCStrategy_TemplateManager<panzer::Traits> > bcs_tm = 
+      Teuchos::RCP<panzer::BCStrategy_TemplateManager<panzer::Traits> > bcs_tm =
           Teuchos::rcp(new panzer::BCStrategy_TemplateManager<panzer::Traits>);
-      
+
       bool found = false;
 
       PANZER_BUILD_BCSTRATEGY_OBJECTS("Constant",
@@ -364,7 +364,7 @@ namespace Example {
                                  "\" is not a valid identifier in the BCStrategyFactory.  Either add a "
                                  "valid implementation to your factory or fix your input file.  The "
                                  "relevant boundary condition is:\n\n" << bc << std::endl);
-      
+
       return bcs_tm;
     }
 
@@ -404,10 +404,10 @@ namespace Example {
     SimpleSource(const std::string & name,
                  const panzer::IntegrationRule & ir);
 
-    void postRegistrationSetup(typename Traits::SetupData d,           
-                               PHX::FieldManager<Traits>& fm);        
+    void postRegistrationSetup(typename Traits::SetupData d,
+                               PHX::FieldManager<Traits>& fm);
 
-    void evaluateFields(typename Traits::EvalData d);               
+    void evaluateFields(typename Traits::EvalData d);
 
 
   private:
@@ -438,7 +438,7 @@ namespace Example {
 
   //**********************************************************************
   template <typename EvalT,typename Traits>
-  void SimpleSource<EvalT,Traits>::postRegistrationSetup(typename Traits::SetupData sd,           
+  void SimpleSource<EvalT,Traits>::postRegistrationSetup(typename Traits::SetupData sd,
                                                          PHX::FieldManager<Traits>& /* fm */)
   {
     ir_index = panzer::getIntegrationRuleIndex(ir_degree,(*sd.worksets_)[0], this->wda);
@@ -447,7 +447,7 @@ namespace Example {
   //**********************************************************************
   template <typename EvalT,typename Traits>
   void SimpleSource<EvalT,Traits>::evaluateFields(typename Traits::EvalData workset)
-  { 
+  {
     using panzer::index_t;
     for (index_t cell = 0; cell < workset.num_cells; ++cell) {
       for (int point = 0; point < source.extent_int(1); ++point) {
@@ -471,10 +471,10 @@ namespace Example {
     SimpleSolution(const std::string & name,
                    const panzer::IntegrationRule & ir);
 
-    void postRegistrationSetup(typename Traits::SetupData d,           
-                               PHX::FieldManager<Traits>& fm);        
+    void postRegistrationSetup(typename Traits::SetupData d,
+                               PHX::FieldManager<Traits>& fm);
 
-    void evaluateFields(typename Traits::EvalData d);               
+    void evaluateFields(typename Traits::EvalData d);
 
 
   private:
@@ -509,7 +509,7 @@ namespace Example {
 
   //**********************************************************************
   template <typename EvalT,typename Traits>
-  void SimpleSolution<EvalT,Traits>::postRegistrationSetup(typename Traits::SetupData sd,           
+  void SimpleSolution<EvalT,Traits>::postRegistrationSetup(typename Traits::SetupData sd,
                                                            PHX::FieldManager<Traits>& /* fm */)
   {
     ir_index = panzer::getIntegrationRuleIndex(ir_degree,(*sd.worksets_)[0], this->wda);
@@ -518,7 +518,7 @@ namespace Example {
   //**********************************************************************
   template <typename EvalT,typename Traits>
   void SimpleSolution<EvalT,Traits>::evaluateFields(typename Traits::EvalData workset)
-  { 
+  {
     using panzer::index_t;
     for (index_t cell = 0; cell < workset.num_cells; ++cell) {
       for (int point = 0; point < solution.extent_int(1); ++point) {
@@ -557,13 +557,13 @@ namespace Example {
     using Teuchos::ParameterList;
     using PHX::Evaluator;
 
-    RCP< vector< RCP<Evaluator<panzer::Traits> > > > evaluators = 
+    RCP< vector< RCP<Evaluator<panzer::Traits> > > > evaluators =
         rcp(new vector< RCP<Evaluator<panzer::Traits> > > );
 
     if (!models.isSublist(model_id)) {
       models.print(std::cout);
       std::stringstream msg;
-      msg << "Falied to find requested model, \"" << model_id 
+      msg << "Falied to find requested model, \"" << model_id
           << "\", for equation set:\n" << std::endl;
       TEUCHOS_TEST_FOR_EXCEPTION(!models.isSublist(model_id), std::logic_error, msg.str());
     }
@@ -573,7 +573,7 @@ namespace Example {
 
     const ParameterList& my_models = models.sublist(model_id);
 
-    for (ParameterList::ConstIterator model_it = my_models.begin(); 
+    for (ParameterList::ConstIterator model_it = my_models.begin();
         model_it != my_models.end(); ++model_it) {
 
       bool found = false;
@@ -605,7 +605,7 @@ namespace Example {
         }
         found = true;
       }
-      
+
       if (plist.isType<std::string>("Type")) {
         std::string type = plist.get<std::string>("Type");
         if(type=="SIMPLE SOURCE") {
@@ -784,33 +784,33 @@ namespace Example {
     }
 
   };
-  
+
   /** The equation set serves two roles. The first is to let the panzer library
    * know which fields this equation set defines and their names. It registers
    * the evaluators required for a particular equation set. The level of the
    * granularity is largely up to a user. For instance this could be the momentum
    * or continuity equation in Navier-Stokes, or it could simply be the Navier-Stokes
-   * equations. 
+   * equations.
    *
    * Generally, this inherits from the panzer::EquationSet_DefaultImpl which takes
-   * care of adding the gather (extract basis coefficients from solution vector) and 
+   * care of adding the gather (extract basis coefficients from solution vector) and
    * scatter (using element matrices and vectors distribute and sum their values
    * to a global linear system) evaluators. These use data members that must be set by
    * the user.
    */
   template <typename EvalT>
   class PoissonEquationSet : public panzer::EquationSet_DefaultImpl<EvalT> {
-  public:    
+  public:
 
     /** In the constructor you set all the fields provided by this
-     * equation set. 
+     * equation set.
      */
     PoissonEquationSet(const Teuchos::RCP<Teuchos::ParameterList>& params,
                        const int& default_integration_order,
                        const panzer::CellData& cell_data,
                        const Teuchos::RCP<panzer::GlobalData>& global_data,
                        const bool build_transient_support);
-    
+
     /** The specific evaluators are registered with the field manager argument.
      */
     void buildAndRegisterEquationSetEvaluators(PHX::FieldManager<panzer::Traits>& fm,
@@ -832,7 +832,7 @@ namespace Example {
     // ********************
     // Validate and parse parameter list
     // ********************
-    {    
+    {
       Teuchos::ParameterList valid_parameters;
       this->setDefaultValidParameters(valid_parameters);
 
@@ -907,7 +907,7 @@ namespace Example {
     using Teuchos::rcp;
 
     RCP<IntegrationRule> ir = this->getIntRuleForDOF("TEMPERATURE");
-    RCP<BasisIRLayout> basis = this->getBasisIRLayoutForDOF("TEMPERATURE"); 
+    RCP<BasisIRLayout> basis = this->getBasisIRLayoutForDOF("TEMPERATURE");
 
     // ********************
     // Energy Equation
@@ -939,7 +939,7 @@ namespace Example {
     }
 
     // Source Operator
-    {   
+    {
       string resName("RESIDUAL_TEMPERATURE"), valName("SOURCE_TEMPERATURE");
       double multiplier(-1);
       RCP<Evaluator<Traits>> op = rcp(new Integrator_BasisTimesScalar<EvalT, Traits>(EvaluatorStyle::CONTRIBUTES, resName, valName, *basis, *ir, multiplier));
@@ -982,7 +982,7 @@ namespace Example {
 
       return eq_set;
     }
-    
+
   };
 
 }

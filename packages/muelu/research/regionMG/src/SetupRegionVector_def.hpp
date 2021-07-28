@@ -80,11 +80,12 @@ void compositeToRegional(RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal,
                          const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport ///< row importer in region layout [in]
                          )
 {
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
 
   // quasiRegional layout
   // create empty vectors and fill it by extracting data from composite vector
-  quasiRegVecs = VectorFactory::Build(rowImport->getTargetMap(), true);
+  quasiRegVecs = Xpetra::VectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>::
+    Build(rowImport->getTargetMap(), true);
   TEUCHOS_ASSERT(!quasiRegVecs.is_null());
   quasiRegVecs->doImport(*compVec, *(rowImport), Xpetra::INSERT);
 
@@ -111,7 +112,8 @@ void compositeToRegional(RCP<Xpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrd
                          const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport ///< row importer in region layout [in]
                          )
 {
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
+  using MultiVectorFactory = Xpetra::MultiVectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
 
   // quasiRegional layout
   // create empty vectors and fill it by extracting data from composite vector
@@ -149,8 +151,12 @@ void regionalToComposite(const RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOr
    * 1. exporting quasiRegional vectors to auxiliary composite vectors (1 per group)
    * 2. add all auxiliary vectors together
    */
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using SC = Scalar;
+  using VectorFactory = Xpetra::VectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+  using Vector = Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+  using Teuchos::ArrayRCP;
 
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("regionalToComposite: 1 - compVec setup")));
 
@@ -212,8 +218,12 @@ void regionalToComposite(const RCP<Xpetra::MultiVector<Scalar, LocalOrdinal, Glo
    * 1. exporting quasiRegional vectors to auxiliary composite vectors (1 per group)
    * 2. add all auxiliary vectors together
    */
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using MultiVectorFactory = Xpetra::MultiVectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+  using MultiVector = Xpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+  using SC = Scalar;
+  using LO = LocalOrdinal;
 
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("regionalToComposite: 1 - compVec setup")));
 
@@ -270,8 +280,11 @@ void sumInterfaceValues(RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, 
                         const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> >  rowImport ///< row importer in region layout [in])
                         )
 {
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using Map = Xpetra::Map<LocalOrdinal, GlobalOrdinal, Node>;
+  using Vector = Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+  using VectorFactory = Xpetra::VectorFactory<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
 
   // Composite map is the same in every group, so just take the first one.
   const RCP<const Map> compMap = rowImport->getSourceMap();
@@ -308,8 +321,11 @@ void sumInterfaceValues(RCP<Xpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdi
                         const RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > rowImport ///< row importer in region layout [in])
                         )
 {
-#include "Xpetra_UseShortNames.hpp"
+// #include "Xpetra_UseShortNames.hpp"
   using Teuchos::TimeMonitor;
+  using Map = Xpetra::Map<LocalOrdinal,GlobalOrdinal,Node>;
+  using MultiVectorFactory = Xpetra::MultiVectorFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
+  using MultiVector = Xpetra::MultiVector<Scalar,LocalOrdinal,GlobalOrdinal,Node>;
 
   // Composite map is the same in every group, so just take the first one.
   const RCP<const Map> compMap = rowImport->getSourceMap();

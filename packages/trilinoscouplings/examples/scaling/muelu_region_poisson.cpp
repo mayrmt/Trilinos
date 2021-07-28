@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include <unordered_map>
 
 // TrilinosCouplings headers
 #include "TrilinosCouplings_config.h"
@@ -128,16 +129,36 @@ int main(int argc, char *argv[]) {
   using LO = panzer::LocalOrdinal;
   using GO = panzer::GlobalOrdinal;
   using NT = panzer::TpetraNodeType;
-  using OP = Tpetra::Operator<ST,LO,GO,NT>;
-  using MV = Tpetra::MultiVector<ST,LO,GO,NT>;
+  // using OP = Tpetra::Operator<ST,LO,GO,NT>;
+  // using MV = Tpetra::MultiVector<ST,LO,GO,NT>;
 
   // MueLu types
   using Scalar = ST;
   using LocalOrdinal = LO;
   using GlobalOrdinal = GO;
   using Node = NT;
+  using SC = Scalar;
+  using NO = Node;
 
-#include <MueLu_UseShortNames.hpp>
+  using Teuchos::RCP;
+  using Teuchos::Array;
+  using Teuchos::ArrayRCP;
+  using Teuchos::rcp_dynamic_cast;
+
+  using Map = Xpetra::Map<LO,GO,NO>;
+  using MapFactory = Xpetra::MapFactory<LO,GO,NO>;
+  using Import = Xpetra::Import<LO,GO,NO>;
+  using ImportFactory = Xpetra::ImportFactory<LO,GO,NO>;
+  using Vector = Xpetra::Vector<SC,LO,GO,NO>;
+  using VectorFactory = Xpetra::VectorFactory<SC,LO,GO,NO>;
+  using MultiVector = Xpetra::MultiVector<SC,LO,GO,NO>;
+  using MultiVectorFactory = Xpetra::MultiVectorFactory<SC,LO,GO,NO>;
+  using Matrix = Xpetra::Matrix<SC,LO,GO,NO>;
+  using CrsMatrixWrap = Xpetra::CrsMatrixWrap<SC,LO,GO,NO>;
+
+  using Hierarchy = MueLu::Hierarchy<SC,LO,GO,NO>;
+
+// #include <MueLu_UseShortNames.hpp>
 
   Kokkos::initialize(argc,argv);
   { // Kokkos scope
@@ -306,24 +327,24 @@ int main(int argc, char *argv[]) {
     // grab the number and names of mesh blocks
     std::vector<std::string> eBlocks;
     mesh->getElementBlockNames(eBlocks);
-    for (int blockId = 0; blockId < eBlocks.size(); ++blockId)
+    for (typename std::vector<std::string>::size_type blockId = 0; blockId < eBlocks.size(); ++blockId)
       out << "eBlocks [" << blockId << "] is named: " << eBlocks[blockId] << std::endl;
     std::vector<bool> unstructured_eBlocks(eBlocks.size(), false);
     out << "After initialization, we expect 'number of element blocks' entries with 'false'." << std::endl;
-    for (int blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
+    for (std::vector<bool>::size_type blockId = 0; blockId < unstructured_eBlocks.size(); ++blockId)
       out << "unstructured_eBlocks [" << blockId << "] is unstructured: " << unstructured_eBlocks[blockId] << std::endl;
     // TODO: set unstructured blocks based on some sort of input information; for example, using the Exodus ex_get_var* functions
 
     // grab the number and names of sidesets
     std::vector<std::string> sidesets;
     mesh->getSidesetNames(sidesets);
-    for (int sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
+    for (std::vector<std::string>::size_type sidesetId = 0; sidesetId < sidesets.size(); ++sidesetId)
       out << "sidesets [" << sidesetId << "] is named: " << sidesets[sidesetId] << std::endl;
 
     // grab the number and names of nodesets
     std::vector<std::string> nodesets;
     mesh->getNodesetNames(nodesets);
-    for (int nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
+    for (std::vector<std::string>::size_type nodesetId = 0; nodesetId < nodesets.size(); ++nodesetId)
       out << "nodesets [" << nodesetId << "] is named: " << nodesets[nodesetId] << std::endl;
 
     // create a physics blocks parameter list
@@ -465,9 +486,9 @@ int main(int argc, char *argv[]) {
     // initialize data here that we will use for the region MG solver
     std::vector<GO> child_element_gids; // these don't always start at 0, and changes I'm making to Panzer keep changing this, so I'll store them for now
     std::vector<GO> child_element_region_gids;
-    Array<GO>  sendGIDs;
-    Array<int> sendPIDs;
-    Array<LO>  sendLIDs;
+    Array<GO>  sendGIDs, receiveGIDs, interfaceGIDs;
+    Array<int> sendPIDs, receivePIDs, interfaceLIDsData;
+    Array<LO>  sendLIDs, receiveLIDs;
     Array<GO>  quasiRegionGIDs;
     // do not run region MG if we delete parent elements or if we do not refine the mesh regularly
     if(mesh_refinements>0 && !delete_parent_elements)
@@ -501,7 +522,7 @@ int main(int argc, char *argv[]) {
 
       {
         const stk::mesh::BucketVector & buckets = refinedMesh->get_bulk_data()->buckets(refinedMesh->element_rank());
-        int npar=0;
+        // int npar=0;
         int nchild=0;
         for (stk::mesh::BucketVector::const_iterator k = buckets.begin(); k != buckets.end(); ++k)
         {
@@ -550,7 +571,8 @@ int main(int argc, char *argv[]) {
     {
       out << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
-      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode, sendGIDs, sendPIDs, sendLIDs,
+      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode,
+                            sendGIDs, sendPIDs, sendLIDs, receiveGIDs, receivePIDs, receiveLIDs,
                             quasiRegionNodeGIDs, quasiRegionDofGIDs);
 
     } // if(mesh_refinements>0 && !delete_parent_elements)
@@ -559,30 +581,34 @@ int main(int argc, char *argv[]) {
     out << "Done working on mesh refinement and blocks detection" << std::endl;
 
     // Probably need to map indices of elements from the Percept indices back to the Panzer indices
-
-
     std::vector<stk::mesh::Entity> elements;
     Kokkos::DynRankView<double,PHX::Device> vertices;
     std::vector<std::size_t> localIds;
-
     panzer_stk::workset_utils::getIdsAndVertices(*mesh,eBlocks[myRank],localIds,vertices);
-    //mesh->getElementVertices(elements,myRank,vertices);
 
-    std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
-    Array<LO> panzerLID2stkLID;
-    Array<GO> panzerLID2stkGID;
-    Array<GO> panzerLID2panzerGID;
-    findPanzer2StkMapping( mesh, dofManager, vertices, panzerLID2stkLID, panzerLID2stkGID,panzerLID2panzerGID);
-    Array<LO> stk2panzerLID(panzerLID2stkLID.size());
-    // Array<GO> stk2panzerGID(panzerLID2stkGID.size());
-    for(size_t idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
-      stk2panzerLID[panzerLID2stkLID[idx]] = idx;
+    // std::cout<<"Printing LID panzer to GID stk mapping: "<<std::endl;
+    Array<LO> panzerLID2stkLID, localPanzerLID2stkLID;
+    Array<GO> panzerLID2stkGID, localPanzerLID2stkGID;
+    Array<GO> panzerLID2panzerGID, localPanzerLID2panzerGID;
+    findPanzer2StkMapping(mesh, dofManager, vertices,
+                          panzerLID2stkLID, panzerLID2stkGID, panzerLID2panzerGID);
+    findPanzer2StkMappingOwned(mesh, dofManager, vertices,
+                               localPanzerLID2stkLID,
+                               localPanzerLID2stkGID,
+                               localPanzerLID2panzerGID);
+    std::unordered_map<LO,LO> localStkLID2panzerLID;
+    for(typename Array<LO>::size_type idx = 0; idx < localPanzerLID2stkLID.size(); ++idx) {
+      localStkLID2panzerLID[localPanzerLID2stkLID[idx]] = idx;
     }
+    // std::unordered_map<GO,LO> stkGID2panzerLID;
+    // for(typename Array<GO>::size_type idx; idx < panzerLID2stkGID.size(); ++idx) {
+    //   stkGID2panzerLID[panzerLID2stkGID[idx]] = idx;
+    // }
 
-    Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
-    for(size_t idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
+    Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
+    for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
       LO idxpanzer = -1;
-      for(size_t i = 0; i < panzerLID2stkGID.size(); ++i) {
+      for(typename Array<GO>::size_type i = 0; i < panzerLID2stkGID.size(); ++i) {
         if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
             idxpanzer = i;
             break;
@@ -654,9 +680,6 @@ int main(int argc, char *argv[]) {
       std::cout << "p=" << myRank << " | gidStkRemap = " << gidStkRemap << std::endl;
       std::cout << "p=" << myRank << " | elemIJK = " << elemIJK << std::endl;
     }
-
-    //Teuchos::RCP<panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO> > tp_object_factory = Teuchos::rcp(new panzer::TpetraLinearObjFactory<panzer::Traits,ST,LO,GO>(comm, dofManager));
-    //tp_object_factory->getMap()->describe(out,Teuchos::VERB_EXTREME);
 
     RCP<Map> quasiRegionRowMap = Teuchos::null;
     RCP<Map> regionRowMap = Teuchos::null;
@@ -860,9 +883,9 @@ int main(int argc, char *argv[]) {
       // =========================================================================
       using STS = Teuchos::ScalarTraits<SC>;
       SC zero = STS::zero(), one = STS::one();
-      using magnitude_type = typename Teuchos::ScalarTraits<Scalar>::magnitudeType;
-      using real_type = typename STS::coordinateType;
-      using RealValuedMultiVector = Xpetra::MultiVector<real_type,LO,GO,NO>;
+      // using magnitude_type = typename Teuchos::ScalarTraits<Scalar>::magnitudeType;
+      // using real_type = typename STS::coordinateType;
+      // using RealValuedMultiVector = Xpetra::MultiVector<real_type,LO,GO,NO>;
 
       ParameterList paramList;
       //auto inst = xpetraParameters.GetInstantiation();
@@ -920,14 +943,14 @@ int main(int argc, char *argv[]) {
 
       Array<GO> dofGIDs = dofMap->getNodeElementList();
       Array<GO> nodeGIDs(dofGIDs.size() / numDofsPerNode);
-      for(size_t nodeIdx = 0; nodeIdx < nodeGIDs.size(); ++nodeIdx) {
+      for(typename Array<GO>::size_type nodeIdx = 0; nodeIdx < nodeGIDs.size(); ++nodeIdx) {
         nodeGIDs[nodeIdx] = dofGIDs[nodeIdx*numDofsPerNode] / numDofsPerNode;
       }
-      RCP<Map> nodeMap = Xpetra::MapFactory<LO,GO,NO>::Build(dofMap->lib(),
-                                                             Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
-                                                             nodeGIDs.view(0, nodeGIDs.size()),
-                                                             dofMap->getIndexBase(),
-                                                             dofMap->getComm());
+      RCP<Map> nodeMap = MapFactory::Build(dofMap->lib(),
+                                           Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
+                                           nodeGIDs.view(0, nodeGIDs.size()),
+                                           dofMap->getIndexBase(),
+                                           dofMap->getComm());
       // TODO: now we need to loop over the local coordinates
       // they will then go through the composite to region
       // mechanism. Although we could probably go directly to
@@ -936,29 +959,109 @@ int main(int argc, char *argv[]) {
       RCP<Xpetra::MultiVector<SC,LO,GO,NO> > nullspace =
         Xpetra::MultiVectorFactory<SC,LO,GO,NO>::Build(dofMap, 1, false);
       nullspace->putScalar(one);
+      RCP<Xpetra::MultiVector<double, LO, GO, NO> > coordinates =
+        Xpetra::MultiVectorFactory<double, LO, GO, NO>::Build(nodeMap, numDimensions, false);
+      Array<ArrayRCP<double> > coordsData(numDimensions);
+      for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+        coordsData[dimIdx] = coordinates->getDataNonConst(dimIdx);
+      }
+      stk::mesh::EntityVector localNodes;
+      stk::mesh::FieldBase *localCoordinatesField =
+        mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
+      stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK,
+                              mesh->getMetaData()->locally_owned_part(), localNodes);
+      for(int nodeIdx = 0; nodeIdx < static_cast<int>(localNodes.size()); ++nodeIdx) {
+        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*localCoordinatesField,
+                                                                        localNodes[nodeIdx]));
+        LO stkLID = getLIDfromSTKNode(mesh->getBulkData(), localNodes[nodeIdx]);
+        LO panzerLID = localStkLID2panzerLID[stkLID];
+        for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+          coordsData[dimIdx][panzerLID] = nodeCoord[dimIdx];
+        }
+      }
+      // std::cout << "p=" << myRank << " | lidstkremap: " << lidStkRemap() << std::endl;
 
-      std::cout << "p=" << myRank << " | stk2panzerLIDs (" << stk2panzerLID.size()
-                << "): " << stk2panzerLID() << std::endl;
+      Array<LO> localLIDstkRemap(nodeGIDs.size()), localPanzerLIDRemap(nodeGIDs.size());
+      int countLocal = 0;
+      for(int regionIdx = 0; regionIdx < static_cast<int>(lidStkRemap.size()); ++regionIdx) {
+        bool is_local = (localStkLID2panzerLID.find(lidStkRemap[regionIdx]) == localStkLID2panzerLID.end()) ? false : true;
+        if(is_local) {
+          localLIDstkRemap[countLocal] = lidStkRemap[regionIdx];
+          localPanzerLIDRemap[countLocal] = localStkLID2panzerLID[lidStkRemap[regionIdx]];
+          ++countLocal;
+        }
+      }
+
+      LO numLocalRegionNodes = 1;
+      for(int dimIdx = 0; dimIdx < static_cast<int>(numDimensions); ++dimIdx) {
+        numLocalRegionNodes = numLocalRegionNodes*regionIJK[dimIdx];
+      }
+      const LO numLocalCompositeNodes = localPanzerLID2stkLID.size();
+      // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
+      // std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
+      Array<LO>  compositeToRegionLIDsNoRemap(dofMap->getNodeNumElements());
+      {
+        int nodeIdx = 0;
+        for(int regionIdx = 0; regionIdx < numLocalRegionNodes; ++regionIdx) {
+          if(lidRemap[regionIdx] == localPanzerLIDRemap[nodeIdx]) {
+            for(int dofIdx = 0; dofIdx < numDofsPerNode; ++dofIdx) {
+              compositeToRegionLIDsNoRemap[nodeIdx*numDofsPerNode + dofIdx] =
+                regionIdx*numDofsPerNode + dofIdx;
+            }
+            ++nodeIdx;
+          }
+        }
+        // std::ostringstream msg;
+        // for(nodeIdx = 0; nodeIdx < numLocalCompositeNodes; ++nodeIdx) {
+        //   msg << " " << lidRemap[compositeToRegionLIDsNoRemap[nodeIdx]];
+        // }
+        // std::cout << "p=" << myRank << " | localCompToReg: {" << msg.str() << " }" << std::endl;
+      }
+
+      // {
+      //   std::ostringstream msg;
+      //   msg << "p=" << myRank << " | coordinates: { ";
+      //   for(int nodeIdx = 0; nodeIdx < static_cast<int>(coordsData[0].size()); ++nodeIdx) {
+      //     msg << "(" << coordsData[0][localPanzerLIDRemap[nodeIdx]] << ", "
+      //         << coordsData[1][localPanzerLIDRemap[nodeIdx]] << ", "
+      //         << coordsData[2][localPanzerLIDRemap[nodeIdx]] << ") ";
+      //   }
+      //   std::cout << msg.str() << std::endl;
+      // }
+
+      // std::cout << "p=" << myRank << " | panzerLID2stkGID: " << panzerLID2stkGID << std::endl;
+      // std::cout << "p=" << myRank << " | localPanzerLID2stkGID: "
+      //           << localPanzerLID2stkGID << std::endl;
+
+      // {
+      //   std::ostringstream msg;
+      //   msg << "p=" << myRank << " | localStkLID2panzerLIDs ("
+      //       << localStkLID2panzerLID.size() << "): { ";
+      //   for(auto& it : localStkLID2panzerLID) {
+      //     msg << "(" << it.first << ", " << it.second << ") ";
+      //   }
+      //   std::cout << msg.str() << "}" << std::endl;
+      // }
       // stk::mesh::EntityVector nodes;
       stk::mesh::FieldBase *coordinatesField = mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
-      stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
+      // stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
       // mesh->getBulkData()->get_entities(stk::topology::NODE_RANK, *myRegion, nodes);
-      RCP<Map> regionCoordMap = Xpetra::MapFactory<LO,GO,NO>::Build(dofMap->lib(),
-                                                                    Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
-                                                                    gidStkRemap.size(),
-                                                                    dofMap->getIndexBase(),
-                                                                    dofMap->getComm());
+      RCP<Map> regionCoordMap = MapFactory::Build(dofMap->lib(),
+                                                  Teuchos::OrdinalTraits<Xpetra::global_size_t>::invalid(),
+                                                  gidStkRemap.size(),
+                                                  dofMap->getIndexBase(),
+                                                  dofMap->getComm());
       RCP<Xpetra::MultiVector<double,LO,GO,NO> > regionCoordinates =
         Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(regionCoordMap, numDimensions, false);
       Array<ArrayRCP<double> > regionCoordsData(numDimensions);
-      for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+      for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
         regionCoordsData[dimIdx] = regionCoordinates->getDataNonConst(dimIdx);
       }
       stk::mesh::Entity node;
-      for(size_t nodeIdx = 0; nodeIdx < gidStkRemap.size(); ++nodeIdx){
+      for(typename Array<GO>::size_type nodeIdx = 0; nodeIdx < gidStkRemap.size(); ++nodeIdx){
         node = mesh->getBulkData()->get_entity(stk::topology::NODE_RANK, gidStkRemap[nodeIdx] + 1);
         double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, node));
-        for(int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+        for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
           regionCoordsData[dimIdx][nodeIdx] = nodeCoord[dimIdx];
         }
       }
@@ -988,7 +1091,6 @@ int main(int argc, char *argv[]) {
         aggregationRegionType = "structured";
       }
 
-      const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
       std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
                 << ", lNodesPerDim: " << lNodesPerDim << std::endl;
 
@@ -1015,13 +1117,23 @@ int main(int argc, char *argv[]) {
       Array<int> boundaryConditions;
       int maxRegPerGID = eBlocks.size();
       int numInterfaces = 0;
-      LO numLocalRegionNodes = 0;
       Array<LO>  rNodesPerDim(3);
       Array<LO>  compositeToRegionLIDs(dofMap->getNodeNumElements());
       Array<GO>  quasiRegionGIDs;
       Array<GO>  quasiRegionCoordGIDs;
-      Array<GO>  interfaceGIDs;
-      Array<LO>  interfaceLIDsData;
+
+      for(int nodeIdx = 0; nodeIdx < numLocalCompositeNodes; ++nodeIdx) {
+        for(int dofIdx = 0; dofIdx < numDofsPerNode; ++dofIdx) {
+          compositeToRegionLIDs[nodeIdx*numDofsPerNode + dofIdx] =
+            compositeToRegionLIDsNoRemap[localPanzerLIDRemap[nodeIdx]*numDofsPerNode + dofIdx];
+        }
+      }
+
+      createInterfaceData(static_cast<const int>(numDofsPerNode),
+                          sendLIDs(), sendGIDs(),
+                          receiveLIDs(), receiveGIDs(),
+                          compositeToRegionLIDs(),
+                          interfaceLIDsData, interfaceGIDs);
 
       // TODO: finish generating the appropriate data that this function typically generates
      createRegionData(numDimensions, useUnstructured,
@@ -1033,7 +1145,7 @@ int main(int argc, char *argv[]) {
                       compositeToRegionLIDs,
                       interfaceGIDs, interfaceLIDsData);
 
-      const LO numSend = static_cast<LO>(sendGIDs.size());
+      // const LO numSend = static_cast<LO>(sendGIDs.size());
 
       // std::cout << "p=" << myRank << " | numSend=" << numSend << std::endl;
       // std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
@@ -1080,27 +1192,27 @@ int main(int argc, char *argv[]) {
 
       Teuchos::RCP<const Xpetra::Map<LO,GO,NO> > rowMap, colMap;
       Teuchos::RCP<const Xpetra::Map<LO,GO,NO> > revisedRowMap, revisedColMap;
-      rowMap = Xpetra::MapFactory<LO,GO,Node>::Build(dofMap->lib(),
-                                                     Teuchos::OrdinalTraits<GO>::invalid(),
-                                                     quasiRegionGIDs(),
-                                                     dofMap->getIndexBase(),
-                                                     dofMap->getComm());
+      rowMap = MapFactory::Build(dofMap->lib(),
+                                 Teuchos::OrdinalTraits<GO>::invalid(),
+                                 quasiRegionGIDs(),
+                                 dofMap->getIndexBase(),
+                                 dofMap->getComm());
       colMap = rowMap;
-      revisedRowMap = Xpetra::MapFactory<LO,GO,Node>::Build(dofMap->lib(),
-                                                            Teuchos::OrdinalTraits<GO>::invalid(),
-                                                            numLocalRegionNodes*numDofsPerNode,
-                                                            dofMap->getIndexBase(),
-                                                            dofMap->getComm());
+      revisedRowMap = MapFactory::Build(dofMap->lib(),
+                                        Teuchos::OrdinalTraits<GO>::invalid(),
+                                        numLocalRegionNodes*numDofsPerNode,
+                                        dofMap->getIndexBase(),
+                                        dofMap->getComm());
       revisedColMap = revisedRowMap;
 
       // Build objects needed to construct the region coordinates
-      Teuchos::RCP<Xpetra::Map<LO,GO,NO> > quasiRegCoordMap = Xpetra::MapFactory<LO,GO,Node>::
+      Teuchos::RCP<Xpetra::Map<LO,GO,NO> > quasiRegCoordMap = MapFactory::
           Build(nodeMap->lib(),
                 Teuchos::OrdinalTraits<GO>::invalid(),
                 quasiRegionCoordGIDs(),
                 nodeMap->getIndexBase(),
                 nodeMap->getComm());
-      Teuchos::RCP<Xpetra::Map<LO,GO,NO> > regCoordMap = Xpetra::MapFactory<LO,GO,Node>::
+      Teuchos::RCP<Xpetra::Map<LO,GO,NO> > regCoordMap = MapFactory::
           Build(nodeMap->lib(),
                 Teuchos::OrdinalTraits<GO>::invalid(),
                 numLocalRegionNodes,
@@ -1200,8 +1312,8 @@ int main(int argc, char *argv[]) {
       // regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
       // regionCoordinates->replaceMap(regCoordMap);
 
-      using Tpetra_CrsMatrix = Tpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
-      using Tpetra_MultiVector = Tpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+      // using Tpetra_CrsMatrix = Tpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+      // using Tpetra_MultiVector = Tpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
 
       // Stuff for multi-level algorithm
       //
