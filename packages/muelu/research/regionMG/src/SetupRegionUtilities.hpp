@@ -244,6 +244,11 @@ void createInterfaceData(const int numDofsPerNode,
 } // createInterfaceData
 
 
+// createRegionData mostly relies on galeri's discretization
+// strategy and cannot really be applied to other application's
+// data. Part of the algorithm at the end of this function
+// could be generalized if the "boundary condition" concept
+// is explained and maybe expanded?
 template<class LocalOrdinal, class GlobalOrdinal, class Node>
 void createRegionData(const int numDimensions,
                       const bool useUnstructured, const int numDofsPerNode,
@@ -1051,21 +1056,21 @@ void createRegionData(const int numDimensions,
     }
   }
 
-
-  // The code below could probably be separated and performed in its own function.
-  // It pretty much tries to go from the more geometric based information generated
-  // above to the quasiRegion map which means finding the GID of nodes-off rank on the interface.
-  const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
-  numLocalRegionNodes = numLocalCompositeNodes + numReceive;
-  quasiRegionGIDs.resize(numLocalRegionNodes*numDofsPerNode);
-  quasiRegionCoordGIDs.resize(numLocalRegionNodes);
-
   rNodesPerDim[0] = lNodesPerDim[0];
   rNodesPerDim[1] = lNodesPerDim[1];
   rNodesPerDim[2] = lNodesPerDim[2];
   if(leftBC   == 0) {rNodesPerDim[0] += 1;}
   if(frontBC  == 0) {rNodesPerDim[1] += 1;}
   if(bottomBC == 0) {rNodesPerDim[2] += 1;}
+  const LO numLocalCompositeNodes = lNodesPerDim[0]*lNodesPerDim[1]*lNodesPerDim[2];
+
+
+  // The code below could probably be separated and performed in its own function.
+  // It pretty much tries to go from the more geometric based information generated
+  // above to the quasiRegion map which means finding the GID of nodes-off rank on the interface.
+  numLocalRegionNodes = numLocalCompositeNodes + numReceive;
+  quasiRegionGIDs.resize(numLocalRegionNodes*numDofsPerNode);
+  quasiRegionCoordGIDs.resize(numLocalRegionNodes);
 
   // Using receiveGIDs, rNodesPerDim and numLocalRegionNodes, build quasi-region row map
   // This will potentially be done by the application or in a MueLu interface but for now
@@ -1130,7 +1135,7 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
   const RCP<const Xpetra::Map<LO,GO,NO> > quasiRegionRowMap = rowImport->getTargetMap();
   const int myRank = dofMap->getComm()->getRank();
 
-  RCP<Xpetra::MultiVector<LO, LO, GO, NO> >regionsPerGID =
+  RCP<Xpetra::MultiVector<LO, LO, GO, NO> > regionsPerGID =
     Xpetra::MultiVectorFactory<LO, LO, GO, NO>::Build(dofMap, maxRegPerGID, false);
   regionsPerGIDWithGhosts =
     Xpetra::MultiVectorFactory<LO, LO, GO, NO>::Build(quasiRegionRowMap, maxRegPerGID, false);
@@ -1149,6 +1154,8 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
       }
     }
 
+    std::cout << "p=" << myRank << " | MakeRegionPerGIDWithGhosts: setup done" << std::endl;
+
     // Now loop over the sendGIDs array to fill entries with values in sendPIDs
     LO nodeIdx = 0;
     for(LO sendIdx = 0; sendIdx < static_cast<LO>(sendPIDs.size()); ++sendIdx) {
@@ -1164,8 +1171,10 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
       }
     }
   }
+  std::cout << "p=" << myRank << " | MakeRegionPerGIDWithGhosts: regionsPerGIDView done" << std::endl;
 
   regionsPerGIDWithGhosts->doImport(*regionsPerGID, *rowImport, Xpetra::INSERT);
+  std::cout << "p=" << myRank << " | MakeRegionPerGIDWithGhosts: import done" << std::endl;
 
   interfaceGIDsMV = Xpetra::MultiVectorFactory<GO, LO, GO, NO>::Build(quasiRegionRowMap, maxRegPerGID, false);
   interfaceGIDsMV->putScalar(Teuchos::OrdinalTraits<GO>::zero());

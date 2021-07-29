@@ -475,14 +475,13 @@ int main(int argc, char *argv[]) {
     tm = Teuchos::null;
     tm = rcp(new Teuchos::TimeMonitor(*Teuchos::TimeMonitor::getNewTimer("Driver: 3 - Setup Region Information")));
 
-    // These will store the GIDs to be put into the region maps
-    Teuchos::Array<GlobalOrdinal> quasiRegionNodeGIDs;
-    Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDs;
-
     unsigned int children_per_element = 1 << (numDimensions*mesh_refinements);
     if(print_debug_info)
       out << "Number of mesh children = " << children_per_element << std::endl;
 
+    // These will store the GIDs to be put into the region maps
+    Teuchos::Array<GlobalOrdinal> quasiRegionNodeGIDs;
+    Teuchos::Array<GlobalOrdinal> quasiRegionDofGIDs;
     // initialize data here that we will use for the region MG solver
     std::vector<GO> child_element_gids; // these don't always start at 0, and changes I'm making to Panzer keep changing this, so I'll store them for now
     std::vector<GO> child_element_region_gids;
@@ -571,10 +570,6 @@ int main(int argc, char *argv[]) {
     {
       out << "Looks like you're running from an Exodus mesh w/o Percept mesh refinement..." << std::endl;
 
-      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode,
-                            sendGIDs, sendPIDs, sendLIDs, receiveGIDs, receivePIDs, receiveLIDs,
-                            quasiRegionNodeGIDs, quasiRegionDofGIDs);
-
     } // if(mesh_refinements>0 && !delete_parent_elements)
 
     comm->barrier();
@@ -600,21 +595,9 @@ int main(int argc, char *argv[]) {
     for(typename Array<LO>::size_type idx = 0; idx < localPanzerLID2stkLID.size(); ++idx) {
       localStkLID2panzerLID[localPanzerLID2stkLID[idx]] = idx;
     }
-    // std::unordered_map<GO,LO> stkGID2panzerLID;
-    // for(typename Array<GO>::size_type idx; idx < panzerLID2stkGID.size(); ++idx) {
-    //   stkGID2panzerLID[panzerLID2stkGID[idx]] = idx;
-    // }
-
-    Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
-    for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
-      LO idxpanzer = -1;
-      for(typename Array<GO>::size_type i = 0; i < panzerLID2stkGID.size(); ++i) {
-        if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
-            idxpanzer = i;
-            break;
-        }
-      }
-      quasiRegionDofGIDsPanzer[idxpanzer] = panzerLID2panzerGID[idxpanzer];
+    std::unordered_map<GO,LO> stkLID2panzerLID;
+    for(typename Array<GO>::size_type idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
+      stkLID2panzerLID[panzerLID2stkLID[idx]] = idx;
     }
 
 
@@ -679,20 +662,6 @@ int main(int argc, char *argv[]) {
       std::cout << "p=" << myRank << " | lidStkRemap = " << lidStkRemap << std::endl;
       std::cout << "p=" << myRank << " | gidStkRemap = " << gidStkRemap << std::endl;
       std::cout << "p=" << myRank << " | elemIJK = " << elemIJK << std::endl;
-    }
-
-    RCP<Map> quasiRegionRowMap = Teuchos::null;
-    RCP<Map> regionRowMap = Teuchos::null;
-    RCP<Map> quasiRegionColMap = Teuchos::null;
-    RCP<Map> regionColMap = Teuchos::null;
-    setupRegionMaps(comm, quasiRegionDofGIDs, quasiRegionRowMap, quasiRegionColMap, regionRowMap, regionColMap);
-
-    if (print_debug_info)
-    {
-      comm->barrier();
-      RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-      quasiRegionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
-      regionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
     }
 
 
@@ -942,6 +911,45 @@ int main(int argc, char *argv[]) {
       }
 
       Array<GO> dofGIDs = dofMap->getNodeElementList();
+
+      for(int sendIdx = 0; sendIdx < static_cast<int>(sendGIDs.size()); ++sendIdx) {
+        sendLIDs[sendIdx] = stkLID2panzerLID[sendLIDs[sendIdx]];
+        sendGIDs[sendIdx] = dofGIDs[sendLIDs[sendIdx]];
+      }
+      for(int receiveIdx = 0; receiveIdx < static_cast<int>(receiveGIDs.size()); ++receiveIdx) {
+        receiveLIDs[receiveIdx] = stkLID2panzerLID[receiveLIDs[receiveIdx]];
+        receiveGIDs[receiveIdx] = A->getColMap()->getGlobalElement(receiveLIDs[receiveIdx]);
+      }
+      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode,
+                            sendGIDs, sendPIDs, sendLIDs, receiveGIDs, receivePIDs, receiveLIDs,
+                            quasiRegionNodeGIDs, quasiRegionDofGIDs);
+
+      Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
+      for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
+        LO idxpanzer = -1;
+        for(typename Array<GO>::size_type i = 0; i < panzerLID2stkGID.size(); ++i) {
+          if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
+            idxpanzer = i;
+            break;
+          }
+        }
+        quasiRegionDofGIDsPanzer[idxpanzer] = panzerLID2panzerGID[idxpanzer];
+      }
+
+      RCP<Map> quasiRegionRowMap = Teuchos::null;
+      RCP<Map> regionRowMap = Teuchos::null;
+      RCP<Map> quasiRegionColMap = Teuchos::null;
+      RCP<Map> regionColMap = Teuchos::null;
+      setupRegionMaps(comm, quasiRegionDofGIDs, quasiRegionRowMap, quasiRegionColMap, regionRowMap, regionColMap);
+
+      if (print_debug_info)
+        {
+          comm->barrier();
+          RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+          quasiRegionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
+          regionRowMap->describe(*my_out, Teuchos::VERB_EXTREME);
+        }
+
       Array<GO> nodeGIDs(dofGIDs.size() / numDofsPerNode);
       for(typename Array<GO>::size_type nodeIdx = 0; nodeIdx < nodeGIDs.size(); ++nodeIdx) {
         nodeGIDs[nodeIdx] = dofGIDs[nodeIdx*numDofsPerNode] / numDofsPerNode;
@@ -991,14 +999,14 @@ int main(int argc, char *argv[]) {
           ++countLocal;
         }
       }
+      // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
+      // std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
 
       LO numLocalRegionNodes = 1;
       for(int dimIdx = 0; dimIdx < static_cast<int>(numDimensions); ++dimIdx) {
         numLocalRegionNodes = numLocalRegionNodes*regionIJK[dimIdx];
       }
       const LO numLocalCompositeNodes = localPanzerLID2stkLID.size();
-      // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
-      // std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
       Array<LO>  compositeToRegionLIDsNoRemap(dofMap->getNodeNumElements());
       {
         int nodeIdx = 0;
@@ -1115,13 +1123,14 @@ int main(int argc, char *argv[]) {
       // First we count how many nodes the region needs to send and receive
       // and allocate arrays accordingly
       Array<int> boundaryConditions;
-      int maxRegPerGID = eBlocks.size();
+      const int maxRegPerGID = eBlocks.size();
       int numInterfaces = 0;
       Array<LO>  rNodesPerDim(3);
       Array<LO>  compositeToRegionLIDs(dofMap->getNodeNumElements());
-      Array<GO>  quasiRegionGIDs;
-      Array<GO>  quasiRegionCoordGIDs;
+      Array<GO>  quasiRegionGIDs(numLocalRegionNodes*numDofsPerNode);
+      Array<GO>  quasiRegionCoordGIDs(numLocalRegionNodes);
 
+      std::cout << "p=" << myRank << " | compositeToRegionLIDs" << std::endl;
       for(int nodeIdx = 0; nodeIdx < numLocalCompositeNodes; ++nodeIdx) {
         for(int dofIdx = 0; dofIdx < numDofsPerNode; ++dofIdx) {
           compositeToRegionLIDs[nodeIdx*numDofsPerNode + dofIdx] =
@@ -1129,21 +1138,21 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      std::cout << "p=" << myRank << " | quasiRegionGIDs" << std::endl;
+      for(int nodeIdx = 0; nodeIdx < numLocalRegionNodes; ++nodeIdx) {
+        quasiRegionCoordGIDs[nodeIdx] = A->getColMap()->getGlobalElement(lidRemap[nodeIdx]);
+        for(int dofIdx = 0; dofIdx < numDofsPerNode; ++dofIdx) {
+          quasiRegionGIDs[nodeIdx*numDofsPerNode + dofIdx] =
+            quasiRegionCoordGIDs[nodeIdx]*numDofsPerNode + dofIdx;
+        }
+      }
+
+      std::cout << "p=" << myRank << " | createInterfaceData" << std::endl;
       createInterfaceData(static_cast<const int>(numDofsPerNode),
                           sendLIDs(), sendGIDs(),
                           receiveLIDs(), receiveGIDs(),
                           compositeToRegionLIDs(),
                           interfaceLIDsData, interfaceGIDs);
-
-      // TODO: finish generating the appropriate data that this function typically generates
-     createRegionData(numDimensions, useUnstructured,
-                      numDofsPerNode, lNodesPerDim(),
-                      nodeMap, dofMap, numLocalRegionNodes,
-                      sendGIDs, sendPIDs,
-                      numInterfaces, rNodesPerDim,
-                      quasiRegionGIDs, quasiRegionCoordGIDs,
-                      compositeToRegionLIDs,
-                      interfaceGIDs, interfaceLIDsData);
 
       // const LO numSend = static_cast<LO>(sendGIDs.size());
 
@@ -1170,10 +1179,11 @@ int main(int argc, char *argv[]) {
       interfaceParams->set<Array<LO> >("interfaces: nodes per dimensions", interfacesDimensions); // nodesPerDimensions);
       interfaceParams->set<Array<LO> >("interfaces: interface nodes",      interfacesLIDs); // interfaceLIDs);
 
-      // std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
-      // std::cout << "p=" << myRank << " | quasiRegionGIDs: " << quasiRegionGIDs << std::endl;
-      // std::cout << "p=" << myRank << " | interfaceGIDs: " << interfaceGIDs << std::endl;
-      // std::cout << "p=" << myRank << " | interfaceLIDsData: " << interfaceLIDsData << std::endl;
+      std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
+      std::cout << "p=" << myRank << " | compositeGIDs (" << dofGIDs.size() << "): " << dofGIDs() << std::endl;
+      std::cout << "p=" << myRank << " | quasiRegionGIDs (" << quasiRegionGIDs.size() << "): " << quasiRegionGIDs << std::endl;
+      std::cout << "p=" << myRank << " | interfaceGIDs: " << interfaceGIDs << std::endl;
+      std::cout << "p=" << myRank << " | interfaceLIDsData: " << interfaceLIDsData << std::endl;
       // std::cout << "p=" << myRank << " | interfaceLIDs: " << interfaceLIDs << std::endl;
       // std::cout << "p=" << myRank << " | quasiRegionCoordGIDs: " << quasiRegionCoordGIDs() << std::endl;
 
