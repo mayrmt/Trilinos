@@ -248,6 +248,7 @@ void MakeRegionMatrices(const RCP<Xpetra::CrsMatrixWrap<Scalar, LocalOrdinal, Gl
   const SC SC_ZERO = Teuchos::ScalarTraits<SC>::zero();
 
   RCP<TimeMonitor> tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("MakeRegionMatrices: 1 - Create Matrix")));
+  std::cout << "p=" << rowMap->getComm()->getRank() << " | MakeRegionMatrices: 1 - Create Matrix" << std::endl;
 
   // Copy data from quasiRegionMats, but into new map layout
   {
@@ -289,6 +290,7 @@ void MakeRegionMatrices(const RCP<Xpetra::CrsMatrixWrap<Scalar, LocalOrdinal, Gl
 
   tm = Teuchos::null;
   tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("MakeRegionMatrices: 2 - Enforce nullspace constraint")));
+  std::cout << "p=" << rowMap->getComm()->getRank() << " | MakeRegionMatrices: 2 - Enforce nullspace constraint" << std::endl;
 
   // enforce nullspace constraint
   RCP<Vector> regNspViolation;
@@ -339,6 +341,7 @@ void MakeRegionMatrices(const RCP<Xpetra::CrsMatrixWrap<Scalar, LocalOrdinal, Gl
 
   tm = Teuchos::null;
   tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("MakeRegionMatrices: 3 - Replace diagonal")));
+  std::cout << "p=" << rowMap->getComm()->getRank() << " | MakeRegionMatrices: 3 - Replace diagonal" << std::endl;
 
   RCP<Vector> regNsp;
   regNsp = VectorFactory::Build(revisedRowMap);

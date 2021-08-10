@@ -199,9 +199,13 @@ void findInterface(const int numDimensions, Teuchos::Array<LocalOrdinal> nodesPe
   }
 } // findInterface
 
+template<class LocalOrdinal, class GlobalOrdinal>
+void createInterfaceData() {
+
+}
 
 template<class LocalOrdinal, class GlobalOrdinal>
-void createInterfaceData(const int numDofsPerNode,
+void createInterfaceData(const int numDofsPerNode, const int myRank,
                          Teuchos::ArrayView<LocalOrdinal>  sendLIDs,
                          Teuchos::ArrayView<GlobalOrdinal> sendGIDs,
                          Teuchos::ArrayView<LocalOrdinal>  receiveLIDs,
@@ -211,15 +215,17 @@ void createInterfaceData(const int numDofsPerNode,
                          Teuchos::Array<GlobalOrdinal>&    interfaceGIDs) {
   using GO = GlobalOrdinal;
   using LO = LocalOrdinal;
+  using size_type = typename Teuchos::Array<GO>::size_type;
 
   // Here we gather the interface GIDs (in composite layout)
   // and the interface LIDs (in region layout) for the local rank
   interfaceLIDsData.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
   interfaceGIDs.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
-  using size_type = typename Teuchos::Array<GO>::size_type;
   for(size_type nodeIdx = 0; nodeIdx < sendGIDs.size(); ++nodeIdx) {
     for(int dof = 0; dof < numDofsPerNode; ++dof) {
       LO dofIdx = nodeIdx*numDofsPerNode + dof;
+      std::cout << "p=" << myRank << " | dofIdx=" << dofIdx
+                << " < numDofs=" << (sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode << std::endl;
       interfaceGIDs[dofIdx] = sendGIDs[nodeIdx] * numDofsPerNode + dof;
       interfaceLIDsData[dofIdx] = compositeToRegionLIDs[sendLIDs[nodeIdx] * numDofsPerNode + dof];
     }
@@ -227,6 +233,8 @@ void createInterfaceData(const int numDofsPerNode,
   for(size_type nodeIdx = 0; nodeIdx < receiveGIDs.size(); ++nodeIdx) {
     for(int dof = 0; dof < numDofsPerNode; ++dof) {
       LO dofIdx = nodeIdx*numDofsPerNode + dof;
+      std::cout << "p=" << myRank << " | dofIdx=" << dofIdx
+                << " < numDofs=" << (sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode << std::endl;
       interfaceGIDs[dofIdx + sendGIDs.size() * numDofsPerNode] = receiveGIDs[nodeIdx] * numDofsPerNode + dof;
       interfaceLIDsData[dofIdx + sendLIDs.size() * numDofsPerNode] = receiveLIDs[nodeIdx] * numDofsPerNode + dof;
     }
@@ -1118,7 +1126,7 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
                                 const Teuchos::RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> >& rowImport,
                                 const int maxRegPerGID,
                                 const LocalOrdinal numDofsPerNode,
-                                const Teuchos::Array<LocalOrdinal>&  lNodesPerDir,
+                                const int numLocalCompositeNodes,
                                 const Teuchos::Array<GlobalOrdinal>& sendGIDs,
                                 const Teuchos::Array<int>& sendPIDs,
                                 const Teuchos::Array<LocalOrdinal>& interfaceRegionLIDs,
@@ -1147,7 +1155,7 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
     }
 
     // Initialize all entries to myRank in first column and to -1 in other columns
-    for(LO dofIdx = 0; dofIdx < lNodesPerDir[0]*lNodesPerDir[1]*lNodesPerDir[2]*numDofsPerNode; ++dofIdx) {
+    for(LO dofIdx = 0; dofIdx < numLocalCompositeNodes*numDofsPerNode; ++dofIdx) {
       regionsPerGIDView[0][dofIdx] = myRank;
       for(int regionIdx = 1; regionIdx < maxRegPerGID; ++regionIdx) {
         regionsPerGIDView[regionIdx][dofIdx] = -1;
@@ -1160,6 +1168,10 @@ void MakeRegionPerGIDWithGhosts(const Teuchos::RCP<Xpetra::Map<LocalOrdinal, Glo
     LO nodeIdx = 0;
     for(LO sendIdx = 0; sendIdx < static_cast<LO>(sendPIDs.size()); ++sendIdx) {
       nodeIdx = nodeMap->getLocalElement(sendGIDs[sendIdx]);
+      if(nodeIdx == -1) {
+        std::cout << "p=" << myRank << " | sendGIDs[" << sendIdx << "]=" << sendGIDs[sendIdx]
+                  << " not found in nodeMap!" << std::endl;
+      }
       for(int dof = 0; dof < numDofsPerNode; ++dof) {
         LO dofIdx = nodeIdx*numDofsPerNode + dof;
         for(int regionIdx = 1; regionIdx < maxRegPerGID; ++regionIdx) {

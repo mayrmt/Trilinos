@@ -202,19 +202,21 @@ void reorderLexElem(Kokkos::DynRankView<double,PHX::Device> vertices,
   return;
 }
 
-Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer::LocalOrdinal> IJK,
-                                                          Teuchos::Array<panzer::LocalOrdinal> elemRemap,
-                                                          const Kokkos::View< const panzer::LocalOrdinal**, Kokkos::LayoutRight, PHX::Device > dofLID,
-                                                          Teuchos::RCP<panzer::GlobalIndexer> dofManager,
-                                                          int nLID )
+void grabLIDsGIDsLexOrder(Teuchos::Array<panzer::LocalOrdinal> IJK,
+                          Teuchos::Array<panzer::LocalOrdinal> elemRemap,
+                          const Kokkos::View<const panzer::LocalOrdinal**, Kokkos::LayoutRight, PHX::Device > dofLID,
+                          Teuchos::RCP<panzer::GlobalIndexer> dofManager,
+                          const int nLID,
+                          Teuchos::Array<panzer::LocalOrdinal>&  lidRemap,
+                          Teuchos::Array<panzer::GlobalOrdinal>& gidRemap)
 {
   using LO = panzer::LocalOrdinal;
   using GO = panzer::GlobalOrdinal;
 
   std::cout<<"Grab LID in order from Elements"<<std::endl;
   // const int numLID = dofLID.extent(1);
-  Teuchos::Array<LO> lidRemap(nLID, -1);
-  Teuchos::Array<LO> gidRemap(nLID, -1);
+  lidRemap.resize(nLID, -1);
+  gidRemap.resize(nLID, -1);
   std::vector< GO > elmGIDs;
   int ind = 0;
   //out <<"i "<<i<<" r "<<r<<" lids "<< dofLID(i,r)<<std::endl;
@@ -266,8 +268,6 @@ Teuchos::Array<panzer::LocalOrdinal> grabLIDsGIDsLexOrder(Teuchos::Array<panzer:
       } // j
     }
   } // k
-  //std::cout<<"    | "<<gidRemap<<std::endl;
-  return lidRemap;
 }
 
 // Convert a STK node entity into a node LID
