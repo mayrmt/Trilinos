@@ -200,12 +200,7 @@ void findInterface(const int numDimensions, Teuchos::Array<LocalOrdinal> nodesPe
 } // findInterface
 
 template<class LocalOrdinal, class GlobalOrdinal>
-void createInterfaceData() {
-
-}
-
-template<class LocalOrdinal, class GlobalOrdinal>
-void createInterfaceData(const int numDofsPerNode, const int myRank,
+void createInterfaceData(const int numDofsPerNode,
                          Teuchos::ArrayView<LocalOrdinal>  sendLIDs,
                          Teuchos::ArrayView<GlobalOrdinal> sendGIDs,
                          Teuchos::ArrayView<LocalOrdinal>  receiveLIDs,
@@ -224,8 +219,6 @@ void createInterfaceData(const int numDofsPerNode, const int myRank,
   for(size_type nodeIdx = 0; nodeIdx < sendGIDs.size(); ++nodeIdx) {
     for(int dof = 0; dof < numDofsPerNode; ++dof) {
       LO dofIdx = nodeIdx*numDofsPerNode + dof;
-      std::cout << "p=" << myRank << " | dofIdx=" << dofIdx
-                << " < numDofs=" << (sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode << std::endl;
       interfaceGIDs[dofIdx] = sendGIDs[nodeIdx] * numDofsPerNode + dof;
       interfaceLIDsData[dofIdx] = compositeToRegionLIDs[sendLIDs[nodeIdx] * numDofsPerNode + dof];
     }
@@ -233,8 +226,6 @@ void createInterfaceData(const int numDofsPerNode, const int myRank,
   for(size_type nodeIdx = 0; nodeIdx < receiveGIDs.size(); ++nodeIdx) {
     for(int dof = 0; dof < numDofsPerNode; ++dof) {
       LO dofIdx = nodeIdx*numDofsPerNode + dof;
-      std::cout << "p=" << myRank << " | dofIdx=" << dofIdx
-                << " < numDofs=" << (sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode << std::endl;
       interfaceGIDs[dofIdx + sendGIDs.size() * numDofsPerNode] = receiveGIDs[nodeIdx] * numDofsPerNode + dof;
       interfaceLIDsData[dofIdx + sendLIDs.size() * numDofsPerNode] = receiveLIDs[nodeIdx] * numDofsPerNode + dof;
     }

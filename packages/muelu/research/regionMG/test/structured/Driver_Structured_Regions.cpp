@@ -452,6 +452,7 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
 
   // First we count how many nodes the region needs to send and receive
   // and allocate arrays accordingly
+  const int numLocalCompositeNodes = nodeMap->getNodeNumElements();
   Array<int> boundaryConditions;
   int maxRegPerGID = 0;
   int numInterfaces = 0;
@@ -459,7 +460,7 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
   Array<GO>  sendGIDs;
   Array<int> sendPIDs;
   Array<LO>  rNodesPerDim(3);
-  Array<LO>  compositeToRegionLIDs(nodeMap->getNodeNumElements()*numDofsPerNode);
+  Array<LO>  compositeToRegionLIDs(numLocalCompositeNodes*numDofsPerNode);
   Array<GO>  quasiRegionGIDs;
   Array<GO>  quasiRegionCoordGIDs;
   Array<GO>  interfaceGIDs;
@@ -569,8 +570,8 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
   RCP<Xpetra::MultiVector<GO, LO, GO, NO> > interfaceGIDsMV;
   MakeRegionPerGIDWithGhosts(nodeMap, revisedRowMap, rowImport,
                              maxRegPerGID, numDofsPerNode,
-                             lNodesPerDim, sendGIDs, sendPIDs, interfaceLIDsData,
-                             regionsPerGIDWithGhosts, interfaceGIDsMV);
+                             numLocalCompositeNodes, sendGIDs, sendPIDs,
+                             interfaceLIDsData, regionsPerGIDWithGhosts, interfaceGIDsMV);
 
   Teuchos::ArrayRCP<LO> regionMatVecLIDs;
   RCP<Import> regionInterfaceImporter;

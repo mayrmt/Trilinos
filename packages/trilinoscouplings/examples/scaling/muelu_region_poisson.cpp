@@ -856,8 +856,8 @@ int main(int argc, char *argv[]) {
       using STS = Teuchos::ScalarTraits<SC>;
       SC zero = STS::zero(), one = STS::one();
       // using magnitude_type = typename Teuchos::ScalarTraits<Scalar>::magnitudeType;
-      // using real_type = typename STS::coordinateType;
-      // using RealValuedMultiVector = Xpetra::MultiVector<real_type,LO,GO,NO>;
+      using real_type = typename STS::coordinateType;
+      using RealValuedMultiVector = Xpetra::MultiVector<real_type,LO,GO,NO>;
 
       ParameterList paramList;
       //auto inst = xpetraParameters.GetInstantiation();
@@ -1046,20 +1046,20 @@ int main(int argc, char *argv[]) {
                                                   gidStkRemap.size(),
                                                   dofMap->getIndexBase(),
                                                   dofMap->getComm());
-      RCP<Xpetra::MultiVector<double,LO,GO,NO> > regionCoordinates =
-        Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(regionCoordMap, numDimensions, false);
-      Array<ArrayRCP<double> > regionCoordsData(numDimensions);
-      for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
-        regionCoordsData[dimIdx] = regionCoordinates->getDataNonConst(dimIdx);
-      }
-      stk::mesh::Entity node;
-      for(typename Array<GO>::size_type nodeIdx = 0; nodeIdx < gidStkRemap.size(); ++nodeIdx){
-        node = mesh->getBulkData()->get_entity(stk::topology::NODE_RANK, gidStkRemap[nodeIdx] + 1);
-        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, node));
-        for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
-          regionCoordsData[dimIdx][nodeIdx] = nodeCoord[dimIdx];
-        }
-      }
+      // RCP<Xpetra::MultiVector<double,LO,GO,NO> > regionCoordinates =
+      //   Xpetra::MultiVectorFactory<double,LO,GO,NO>::Build(regionCoordMap, numDimensions, false);
+      // Array<ArrayRCP<double> > regionCoordsData(numDimensions);
+      // for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+      //   regionCoordsData[dimIdx] = regionCoordinates->getDataNonConst(dimIdx);
+      // }
+      // stk::mesh::Entity node;
+      // for(typename Array<GO>::size_type nodeIdx = 0; nodeIdx < gidStkRemap.size(); ++nodeIdx){
+      //   node = mesh->getBulkData()->get_entity(stk::topology::NODE_RANK, gidStkRemap[nodeIdx] + 1);
+      //   double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*coordinatesField, node));
+      //   for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
+      //     regionCoordsData[dimIdx][nodeIdx] = nodeCoord[dimIdx];
+      //   }
+      // }
 
       // {
       //   std::ostringstream msg;
@@ -1180,12 +1180,11 @@ int main(int argc, char *argv[]) {
       }
 
       // std::cout << "p=" << myRank << " | createInterfaceData" << std::endl;
-      // createInterfaceData(static_cast<const int>(numDofsPerNode), myRank,
+      // createInterfaceData(static_cast<const int>(numDofsPerNode),
       //                     sendLIDs(), sendGIDs(),
       //                     receiveLIDs(), receiveGIDs(),
       //                     compositeToRegionLIDs(),
       //                     interfaceLIDsData, interfaceGIDs);
-      // createInterfaceData(compositeToRegionLIDs());
       std::cout << "p=" << myRank << " | createInterfaceData done!" << std::endl;
 
       const LO numSend = static_cast<LO>(sendGIDs.size());
@@ -1322,6 +1321,9 @@ int main(int argc, char *argv[]) {
       MakeRegionMatrices(Teuchos::rcp_dynamic_cast<CrsMatrixWrap>(A), A->getRowMap(), quasiRowMap,
                          regionRowMap, regionColMap,
                          rowImport, quasiRegionMats, regionMats);
+      std::cout << "p=" << myRank << " | regionMats->getRowMap()->getNodeNumElements() "
+                << regionMats->getRowMap()->getNodeNumElements()
+                << ", rNodePerDim: " << rNodesPerDim << std::endl;
 
       // We don't need the composite operator on the fine level anymore. Free it!
       A = Teuchos::null;
@@ -1339,21 +1341,22 @@ int main(int argc, char *argv[]) {
       // These need to stay in the driver as they would be provide by an app
       Array<int> regionNodesPerDim;
       RCP<MultiVector> regionNullspace;
-      // RCP<RealValuedMultiVector> regionCoordinates;
+      RCP<RealValuedMultiVector> regionCoordinates;
 
       // Set mesh structure data
-      regionNodesPerDim = rNodesPerDim;
+      regionNodesPerDim = lNodesPerDim;
 
       // create nullspace vector
       regionNullspace = MultiVectorFactory::Build(quasiRowMap, nullspace->getNumVectors());
       regionNullspace->doImport(*nullspace, *rowImport, Xpetra::INSERT);
       regionNullspace->replaceMap(regionRowMap);
 
-      // // create region coordinates vector
-      // regionCoordinates = Xpetra::MultiVectorFactory<real_type,LO,GO,NO>::Build(quasiRegCoordMap, // TODO: this can't remain commented
-      //                                                                           coordinates->getNumVectors());
-      // regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
-      // regionCoordinates->replaceMap(regCoordMap);
+      // create region coordinates vector
+      regionCoordinates = Xpetra::MultiVectorFactory<real_type,LO,GO,NO>::Build(quasiRegCoordMap, // TODO: this can't remain commented
+                                                                                coordinates->getNumVectors());
+      regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
+      regionCoordinates->replaceMap(regCoordMap);
+      regionCoordinates->describe(*fancydebug, Teuchos::VERB_EXTREME);
 
       // using Tpetra_CrsMatrix = Tpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
       // using Tpetra_MultiVector = Tpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
@@ -1414,6 +1417,7 @@ int main(int argc, char *argv[]) {
       }
 
       tmLocal = Teuchos::null;
+      if(myRank == 1) { std::cout << "Create region hierarchy" << std::endl;}
 
 
       // Create multigrid hierarchy part 2
@@ -1428,7 +1432,7 @@ int main(int argc, char *argv[]) {
                             regHierarchy,
                             keepCoarseCoords);
 
-      hierarchyData->print();
+      // hierarchyData->print();
 
 
 

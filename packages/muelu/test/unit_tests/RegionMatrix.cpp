@@ -106,6 +106,7 @@ void createRegionMatrix(const Teuchos::ParameterList galeriList,
   //           << ", gNodesPerDir=" << gNodesPerDir << ", lNodesPerDir=" << lNodesPerDir
   //           << ", procsPerDim=" << procsPerDim << std::endl;
 
+  const int numLocalCompositeNodes = nodeMap->getNodeNumElements();
   Array<int> boundaryConditions;
   int maxRegPerGID = 0;
   int numInterfaces = 0;
@@ -113,7 +114,7 @@ void createRegionMatrix(const Teuchos::ParameterList galeriList,
   Array<GO>  sendGIDs;
   Array<int> sendPIDs;
   Array<LO>  rNodesPerDim(3);
-  Array<LO>  compositeToRegionLIDs(nodeMap->getNodeNumElements()*numDofsPerNode);
+  Array<LO>  compositeToRegionLIDs(numLocalCompositeNodes*numDofsPerNode);
   Array<GO>  quasiRegionGIDs;
   Array<GO>  quasiRegionCoordGIDs;
   Array<GO>  interfaceCompositeGIDs, interfaceRegionGIDs;
@@ -159,8 +160,8 @@ void createRegionMatrix(const Teuchos::ParameterList galeriList,
   RCP<Xpetra::MultiVector<GO, LO, GO, NO> > interfaceGIDsMV;
   MakeRegionPerGIDWithGhosts(nodeMap, revisedRowMap, rowImport,
                              maxRegPerGID, numDofsPerNode,
-                             lNodesPerDir, sendGIDs, sendPIDs, interfaceRegionLIDs,
-                             regionsPerGIDWithGhosts, interfaceGIDsMV);
+                             numLocalCompositeNodes, sendGIDs, sendPIDs,
+                             interfaceRegionLIDs, regionsPerGIDWithGhosts, interfaceGIDsMV);
 
   SetupMatVec(interfaceGIDsMV, regionsPerGIDWithGhosts, revisedRowMap, rowImport,
               regionMatVecLIDs, regionInterfaceImporter);
