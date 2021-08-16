@@ -704,7 +704,6 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
   hierarchyData->print();
 
 
-
   comm->barrier();
   tm = Teuchos::null;
 

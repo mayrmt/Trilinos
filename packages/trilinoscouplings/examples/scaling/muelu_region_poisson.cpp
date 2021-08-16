@@ -1430,7 +1430,8 @@ int main(int argc, char *argv[]) {
                             smootherParams,
                             hierarchyData,
                             regHierarchy,
-                            keepCoarseCoords);
+                            keepCoarseCoords,
+                            /*debug flags, remove later! */ true);
 
       // hierarchyData->print();
 
