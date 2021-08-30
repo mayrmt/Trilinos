@@ -210,7 +210,11 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     }
 
     std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": fineDuplicateLIDs " << fineDuplicateLIDs << std::endl;
+    std::cout << "p=" << myRank << " | level " << currentLevel
               << ": countComposites=" << countComposites << ", countDuplicates=" << countDuplicates << std::endl;
+    RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    // regProlong->describe(*fos, Teuchos::VERB_EXTREME);
 
     // We gather the coarse GIDs associated with each fine point in the local composite mesh part.
     RCP<Xpetra::Vector<GO,LO,GO,NO> > coarseCompositeGIDs
@@ -259,8 +263,7 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
       regionsPerGIDWithGhostsFine[idx]   = levelFine->Get<RCP<Xpetra::MultiVector<LO,LO,GO,NO> > >("regionsPerGIDWithGhosts")->getData(idx);
       regionsPerGIDWithGhostsCoarse[idx] = regionsPerGIDWithGhosts->getDataNonConst(idx);
       interfaceGIDsCoarse[idx]           = interfaceGIDs->getDataNonConst(idx);
-      for(size_t coarseIdx = 0;
-          coarseIdx < regionsPerGIDWithGhosts->getLocalLength(); ++coarseIdx) {
+      for(size_t coarseIdx = 0; coarseIdx < regionsPerGIDWithGhosts->getLocalLength(); ++coarseIdx) {
         regionsPerGIDWithGhostsCoarse[idx][coarseIdx] = -1;
         interfaceGIDsCoarse[idx][coarseIdx] = 0;
       }
@@ -277,7 +280,7 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
       // Now fill regionPerGIDWithGhostsCoarse[:][coarseRegionLID]
       // with data from regionPerGIDWithGhostsFine[:][fineIdx].
       // The problem is we might have more then maxRegPerGID on currentLevel
-      // then on currentLevel-1... we might need to do a union or something?
+      // than on currentLevel-1... we might need to do a union or something?
       // I guess technically using the restriction operator here would be more
       // helpful than the prolongator, this way we could find all the fine interface
       // points easily and compute the union of the PIDs they belong too.
@@ -306,28 +309,31 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
       ArrayView<const LO> coarseRegionLID; // Should contain a single value
       ArrayView<const SC> dummyData; // Should contain a single value
       regProlong->getLocalRowView(fineDuplicateLIDs[duplicateIdx],
-                                                   coarseRegionLID,
-                                                   dummyData);
+                                  coarseRegionLID,
+                                  dummyData);
       fineRegionDuplicateCoarseLIDs[duplicateIdx] = regProlong->getColMap()->getGlobalElement(coarseRegionLID[0]);
       fineRegionDuplicateCoarseGIDs[duplicateIdx] = (coarseQuasiregionGIDs->getDataNonConst(0))[fineDuplicateLIDs[duplicateIdx]];
     }
 
+    std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": fineRegionDuplicateCoarseLIDs " << fineRegionDuplicateCoarseLIDs << std::endl;
+
     // Create the coarseQuasiregRowMap, it will be based on the coarseRegRowMap
     LO countCoarseComposites = 0;
     coarseCompositeToRegionLIDs.resize(numCoarseRegionNodes);
-    Array<GO> coarseQuasiregRowMapData = regProlong->getColMap()->getNodeElementList();
+    Array<GO> coarseQuasiRegRowMapData = regProlong->getColMap()->getNodeElementList();
     Array<GO> coarseCompRowMapData(numCoarseRegionNodes, -1);
     for(size_t regionIdx = 0; regionIdx < numCoarseRegionNodes; ++regionIdx) {
-      const GO initialValue = coarseQuasiregRowMapData[regionIdx];
+      const GO initialValue = coarseQuasiRegRowMapData[regionIdx];
       for(size_t duplicateIdx = 0; duplicateIdx < numFineDuplicateNodes; ++duplicateIdx) {
         if((initialValue == fineRegionDuplicateCoarseLIDs[duplicateIdx]) &&
-           (fineRegionDuplicateCoarseGIDs[duplicateIdx] < coarseQuasiregRowMapData[regionIdx]) &&
+           (fineRegionDuplicateCoarseGIDs[duplicateIdx] < coarseQuasiRegRowMapData[regionIdx]) &&
            (-1 < fineRegionDuplicateCoarseGIDs[duplicateIdx])){
-          coarseQuasiregRowMapData[regionIdx] = fineRegionDuplicateCoarseGIDs[duplicateIdx];
+          coarseQuasiRegRowMapData[regionIdx] = fineRegionDuplicateCoarseGIDs[duplicateIdx];
         }
       }
-      if(initialValue == coarseQuasiregRowMapData[regionIdx]) {
-        coarseCompRowMapData[countCoarseComposites] = coarseQuasiregRowMapData[regionIdx];
+      if(initialValue == coarseQuasiRegRowMapData[regionIdx]) {
+        coarseCompRowMapData[countCoarseComposites] = coarseQuasiRegRowMapData[regionIdx];
         coarseCompositeToRegionLIDs[countCoarseComposites] = regionIdx;
         ++countCoarseComposites;
       }
@@ -335,12 +341,18 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     coarseCompRowMapData.resize(countCoarseComposites);
     coarseCompositeToRegionLIDs.resize(countCoarseComposites);
 
+    std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": countCoarseComposites= " << countCoarseComposites << std::endl;
+    std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": coarseCompRowMap= " << coarseCompRowMapData << std::endl;
+
+
     // We are now ready to fill up the outputs
     RCP<const Map> regRowMapCurrent      = regProlong->getColMap();
 
     RCP<Map> quasiRegRowMap =  MapFactory::Build(regProlong->getColMap()->lib(),
                                                  GO_INV,
-                                                 coarseQuasiregRowMapData(),
+                                                 coarseQuasiRegRowMapData(),
                                                  regProlong->getColMap()->getIndexBase(),
                                                  regProlong->getColMap()->getComm());
 
@@ -954,7 +966,7 @@ void createRegionHierarchy(const int numDimensions,
     }
 
     RCP<Level> level = regHierarchy->GetLevel(numLevels - 1);
-    RCP<Matrix>  regMatrix      = level->Get<RCP<Matrix> >("A", MueLu::NoFactory::get());
+    RCP<Matrix> regMatrix       = level->Get<RCP<Matrix> >("A", MueLu::NoFactory::get());
     RCP<Import> regRowImporter  = level->Get<RCP<Import> >("rowImport");
     RCP<const Map> compRowMap         = regRowImporter->getSourceMap();
     RCP<const Map> quasiRegRowMap     = regRowImporter->getTargetMap();
