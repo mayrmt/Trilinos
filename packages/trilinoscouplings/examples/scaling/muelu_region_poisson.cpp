@@ -1076,9 +1076,9 @@ int main(int argc, char *argv[]) {
 
       // regionCoordinates->describe(out, Teuchos::VERB_EXTREME);
 
-      X = VectorFactory::Build(dofMap);
-      X->putScalar(zero);
-      B = VectorFactory::Build(dofMap);
+      // X = VectorFactory::Build(dofMap);
+      // X->putScalar(zero);
+      // B = VectorFactory::Build(dofMap);
 
       Teuchos::Array<typename STS::magnitudeType> norms(1);
       B->norm2(norms);
