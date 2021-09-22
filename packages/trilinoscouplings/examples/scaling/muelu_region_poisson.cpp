@@ -1227,6 +1227,16 @@ int main(int argc, char *argv[]) {
       std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
       std::cout << "p=" << myRank << " | sendPIDs: " << sendPIDs << std::endl;
 
+      int leftBC = 0, rightBC = 0, frontBC = 0, backBC = 0, bottomBC = 0, topBC = 0;
+      topBC = 0;
+      bottomBC = 0;
+  boundaryConditions.resize(6);
+  boundaryConditions[0] = leftBC  ;
+  boundaryConditions[1] = rightBC ;
+  boundaryConditions[2] = frontBC ;
+  boundaryConditions[3] = backBC  ;
+  boundaryConditions[4] = bottomBC;
+  boundaryConditions[5] = topBC   ;
       // Second we actually fill the send and receive arrays with appropriate data
       // which will allow us to compute the region and composite maps.
       // Now we can construct a list of GIDs that corresponds to rowMap
@@ -1237,10 +1247,10 @@ int main(int argc, char *argv[]) {
 
         // std::cout << "p=" << myRank << " | numLocalRegionNodes=" << numLocalRegionNodes
         //           << ", rNodesPerDim: " << rNodesPerDim << std::endl;
-        // std::cout << "p=" << myRank << " | boundaryConditions: " << boundaryConditions << std::endl
-        //           << "p=" << myRank << " | rNodesPerDim: " << rNodesPerDim << std::endl
-        //           << "p=" << myRank << " | interfacesDimensions: " << interfacesDimensions << std::endl
-        //           << "p=" << myRank << " | interfacesLIDs: " << interfacesLIDs << std::endl;
+         std::cout << "p=" << myRank << " | boundaryConditions: " << boundaryConditions << std::endl
+                   << "p=" << myRank << " | rNodesPerDim: " << rNodesPerDim << std::endl
+                   << "p=" << myRank << " | interfacesDimensions: " << interfacesDimensions << std::endl
+                   << "p=" << myRank << " | interfacesLIDs: " << interfacesLIDs << std::endl;
       }
 
       interfaceParams->set<Array<LO> >("interfaces: nodes per dimensions", interfacesDimensions); // nodesPerDimensions);

@@ -523,6 +523,7 @@ namespace MueLu {
         fineNodeIdx = (nodeIJK[2]*fineNodesPerDim[1] + nodeIJK[1])*fineNodesPerDim[0] + nodeIJK[0];
 
         if(aggStat[interfaceNodes[fineNodeIdx]] == READY) {
+          std::cout<<"Agg: "<<aggregateCount<<" fine center: "<<interfaceNodes[fineNodeIdx]<<std::endl;
           vertex2AggId[interfaceNodes[fineNodeIdx]] = aggregateCount;
           procWinner[interfaceNodes[fineNodeIdx]]   = myRank;
           aggStat[interfaceNodes[fineNodeIdx]]      = AGGREGATED;
@@ -547,8 +548,8 @@ namespace MueLu {
         nodeIJK[0] = rem % fineNodesPerDim[0];
 
         for(int dim = 0; dim < 3; ++dim) {
-          coarseIJK[dim] = nodeIJK[dim] / coarseRate[dim];
-          rem            = nodeIJK[dim] % coarseRate[dim];
+          coarseIJK[dim] = (nodeIJK[dim]+1) / coarseRate[dim];
+          rem            = (nodeIJK[dim]+1) % coarseRate[dim];
           if(nodeIJK[dim] < fineNodesPerDim[dim] - endRate[dim]) {
             rate = coarseRate[dim];
           } else {
@@ -565,6 +566,8 @@ namespace MueLu {
           }
         }
         fineNodeIdx = (nodeIJK[2]*fineNodesPerDim[1] + nodeIJK[1])*fineNodesPerDim[0] + nodeIJK[0];
+
+        std::cout<<"Agg: "<<vertex2AggId[interfaceNodes[fineNodeIdx]]<<" , nodeIdx: "<<interfaceNodes[nodeIdx]<<"fineNodeIdx: "<<interfaceNodes[fineNodeIdx]<<std::endl;
 
         vertex2AggId[interfaceNodes[nodeIdx]] = vertex2AggId[interfaceNodes[fineNodeIdx]];
         procWinner[interfaceNodes[nodeIdx]]   = myRank;
