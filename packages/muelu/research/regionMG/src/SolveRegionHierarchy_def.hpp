@@ -455,6 +455,14 @@ void solveRegionProblem(const double tol, const bool scaleResidualHist, const in
     }
   out << "Number of iterations performed for this solve: " << cycle << std::endl;
 
+  //std::cout<<"p= "<<dofMap()->getComm()->getRank()<<" | regX: "<<regX->getDataNonConst(0)()<<std::endl;
+
+  // Send solution regX back to X.
+  RCP<Vector> compB = VectorFactory::Build(X->getMap());
+  RCP<Vector> regInterfaceScalings0 = level0->Get<RCP<Vector> >("regInterfaceScalings");
+  scaleInterfaceDOFs(regX, regInterfaceScalings0, true);
+  regionalToComposite(regX, X, rowImport);
+
   std::cout << std::setprecision(old_precision);
   std::cout.unsetf(std::ios::fixed | std::ios::scientific);
 }

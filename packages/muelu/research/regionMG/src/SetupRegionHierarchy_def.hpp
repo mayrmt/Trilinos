@@ -156,6 +156,10 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
 
   Array<LO> coarseCompositeToRegionLIDs;
   ArrayView<LO> compositeToRegionLIDs = level0->Get<ArrayView<LO> > ("compositeToRegionLIDs");
+  ArrayView<LO> compositeToRegionLIDsNoRemap = level0->Get<ArrayView<LO> > ("compositeToRegionLIDsNoRemap");
+  Teuchos::Array<LO> lidRemap = level0->Get<Teuchos::Array<LO>> ("lidRemap");
+  Teuchos::Array<LO> localLIDsRemap = level0->Get<Teuchos::Array<LO>> ("localLIDsRemap");
+  Teuchos::Array<GO> gidRemap = level0->Get<Teuchos::Array<GO>> ("gidRemap");
 
   for(int currentLevel = 1; currentLevel < numLevels; ++currentLevel) {
     RCP<Level> level         = regHierarchy->GetLevel(currentLevel);
@@ -214,24 +218,64 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     std::cout << "p=" << myRank << " | level " << currentLevel
               << ": countComposites=" << countComposites << ", countDuplicates=" << countDuplicates << std::endl;
     RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-    regProlong->describe(*fos, Teuchos::VERB_EXTREME);
+    //regProlong->describe(*fos, Teuchos::VERB_EXTREME);
 
     // We gather the coarse GIDs associated with each fine point in the local composite mesh part.
     RCP<Xpetra::Vector<GO,LO,GO,NO> > coarseCompositeGIDs
       = Xpetra::VectorFactory<GO,LO,GO,NO>::Build(regRowImportFine->getSourceMap(), false);
     Teuchos::ArrayRCP<GO> coarseCompositeGIDsData = coarseCompositeGIDs->getDataNonConst(0);
 
+    if(currentLevel > 1){
     for(size_t compositeNodeIdx = 0; compositeNodeIdx < numFineCompositeNodes; ++compositeNodeIdx) {
       ArrayView<const LO> coarseRegionLID; // Should contain a single value
       ArrayView<const SC> dummyData; // Should contain a single value
       regProlong->getLocalRowView(compositeToRegionLIDs[compositeNodeIdx],
                                   coarseRegionLID,
                                   dummyData);
+      //std::cout<<"p= "<<myRank<<" COMP: "<<compositeNodeIdx<<" Reg: "<<compositeToRegionLIDs[compositeNodeIdx]<<" coarseLID: "<<coarseRegionLID[0]<<std::endl;
       if(coarseRegionLID.size() == 1) {
         coarseCompositeGIDsData[compositeNodeIdx] = regProlong->getColMap()->getGlobalElement(coarseRegionLID[0]);
+        //coarseCompositeGIDsData[localLIDsRemap[compositeNodeIdx]] = regProlong->getColMap()->getGlobalElement(coarseRegionLID[0]);
       } else {
         coarseCompositeGIDsData[compositeNodeIdx] = -1;
       }
+    }
+    } else {
+
+
+    regRowMapFine->getComm()->barrier();
+
+    size_t compositeNodeIdxCnt = 0;
+    int blah = 0;
+    for(size_t compositeNodeIdx = 0; compositeNodeIdx < numFineCompositeNodes; ++compositeNodeIdx) {
+      ArrayView<const LO> coarseRegionLID; // Should contain a single value
+      ArrayView<const SC> dummyData; // Should contain a single value
+      int j = -1;
+      //for(int i = 0; i<numFineCompositeNodes; i++){
+        //if( compositeNodeIdx == compositeToRegionLIDs[i] ){
+      for(int i = 0; i<numFineRegionNodes; i++){
+        if( compositeNodeIdx == lidRemap[i] ){
+          regProlong->getLocalRowView(i,
+                                      coarseRegionLID,
+                                      dummyData);
+          j = i;
+        }
+      }
+      //std::cout<<"p= "<<myRank<<" COMP: "<<compositeNodeIdx<<" Reg: "<<compositeToRegionLIDs[compositeNodeIdx]<<" i: "<<j<<" coarseLID: "<<coarseRegionLID[0]<<std::endl;
+      if(j>-1){
+      //std::cout<<"p= "<<myRank<<" COMP: "<<compositeNodeIdx<<" i: "<<j<<" coarseLID: "<<coarseRegionLID[0]<<std::endl;
+      if(coarseRegionLID.size() == 1) {
+        coarseCompositeGIDsData[compositeNodeIdxCnt] = regProlong->getColMap()->getGlobalElement(coarseRegionLID[0]);
+        compositeNodeIdxCnt++;
+      } else {
+        coarseCompositeGIDsData[compositeNodeIdxCnt] = -1;
+        compositeNodeIdxCnt++;
+      }
+      } else {
+          blah++;
+      }
+    }
+
     }
 
     std::cout << "p=" << myRank << " | level " << currentLevel
@@ -246,6 +290,8 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
                         coarseRegionGIDs,
                         regRowMapFine,
                         regRowImportFine);
+
+    std::cout<<"p= "<<myRank<<" | coarseQuasiregionGIDs: "<<coarseQuasiregionGIDs->getDataNonConst(0)()<<std::endl;
 
     RCP<Xpetra::MultiVector<LO,LO,GO,NO> > regionsPerGIDWithGhosts =
       Xpetra::MultiVectorFactory<LO,LO,GO,NO>::Build(regRowMapFine,
@@ -302,6 +348,10 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
         }
       }
     }
+      {
+        RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+        regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
+      }
 
     Array<GO> fineRegionDuplicateCoarseLIDs(numFineDuplicateNodes);
     Array<GO> fineRegionDuplicateCoarseGIDs(numFineDuplicateNodes);
@@ -317,11 +367,15 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
 
     std::cout << "p=" << myRank << " | level " << currentLevel
               << ": fineRegionDuplicateCoarseLIDs " << fineRegionDuplicateCoarseLIDs << std::endl;
+    std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": fineRegionDuplicateCoarseGIDs " << fineRegionDuplicateCoarseGIDs << std::endl;
 
     // Create the coarseQuasiregRowMap, it will be based on the coarseRegRowMap
     LO countCoarseComposites = 0;
     coarseCompositeToRegionLIDs.resize(numCoarseRegionNodes);
     Array<GO> coarseQuasiRegRowMapData = regProlong->getColMap()->getNodeElementList();
+//    std::cout << "p=" << myRank << " | level " << currentLevel
+//              << ": coarseQuasiRegRowMapData(initial) " << coarseQuasiRegRowMapData << std::endl;
     Array<GO> coarseCompRowMapData(numCoarseRegionNodes, -1);
     for(size_t regionIdx = 0; regionIdx < numCoarseRegionNodes; ++regionIdx) {
       const GO initialValue = coarseQuasiRegRowMapData[regionIdx];
@@ -342,9 +396,13 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     coarseCompositeToRegionLIDs.resize(countCoarseComposites);
 
     std::cout << "p=" << myRank << " | level " << currentLevel
-              << ": countCoarseComposites= " << countCoarseComposites << std::endl;
+              << ": coarseQuasiRegRowMapData(final) " << coarseQuasiRegRowMapData << std::endl;
+//    std::cout << "p=" << myRank << " | level " << currentLevel
+//              << ": countCoarseComposites= " << countCoarseComposites << std::endl;
     std::cout << "p=" << myRank << " | level " << currentLevel
               << ": coarseCompRowMap= " << coarseCompRowMapData << std::endl;
+    std::cout << "p=" << myRank << " | level " << currentLevel
+              << ": coarseCompositeToRegionLIDs " << coarseCompositeToRegionLIDs << std::endl;
 
 
     // We are now ready to fill up the outputs
@@ -363,6 +421,8 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
                                              regProlong->getColMap()->getComm());
 
     RCP<Import> regRowImportCurrent = ImportFactory::Build(compRowMap, quasiRegRowMap);
+
+    //regRowImportCurrent->print(std::cout);
 
     // Now generate matvec data
     ArrayRCP<LO> regionMatVecLIDs;
@@ -415,7 +475,9 @@ void MakeCoarseCompositeOperator(RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdin
   coarseCompOp->setObjectLabel("coarse composite operator");
 
   RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-  coarseCompOp->describe(*fos, Teuchos::VERB_EXTREME);
+  std::cout<<"CoarseCompOp:"<<std::endl;
+  compRowMap->getComm()->barrier();
+  //coarseCompOp->describe(*fos, Teuchos::VERB_EXTREME);
 
   // Create coarse composite coordinates for repartitioning
   if(makeCompCoords) {
@@ -811,6 +873,8 @@ void MakeInterfaceScalingFactors(const int numLevels,
                         regInterfaceScalings,
                         regRowMap, regRowImporters);
 
+    int myRank = regRowMap->getComm()->getRank();
+    //std::cout<<"p= "<<myRank<<" | level= "<<l<<" | interfaceScaling: "<<regInterfaceScalings->getDataNonConst(0)()<<std::endl;
     level->Set<RCP<Vector> >("regInterfaceScalings", regInterfaceScalings);
   }
 } // MakeInterfaceScalingFactors
