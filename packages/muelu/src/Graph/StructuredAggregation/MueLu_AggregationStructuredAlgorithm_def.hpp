@@ -101,22 +101,46 @@ namespace MueLu {
       // Compute coarse ID associated with fine LID
       geoData->getFineNodeGhostedTuple(nodeIdx, ghostedIdx[0], ghostedIdx[1], ghostedIdx[2]);
 
+//      for(int dim = 0; dim < 3; ++dim) {
+//        if(singleCoarsePoint
+//           && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
+//          coarseIdx[dim] = 0;
+//        } else {
+//          coarseIdx[dim] = ghostedIdx[dim] / geoData->getCoarseningRate(dim);
+//          rem    = ghostedIdx[dim] % geoData->getCoarseningRate(dim);
+//          if(ghostedIdx[dim] - geoData->getOffset(dim)
+//             < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
+//            rate = geoData->getCoarseningRate(dim);
+//          } else {
+//            rate = geoData->getCoarseningEndRate(dim);
+//          }
+//          if(rem > (rate / 2)) {++coarseIdx[dim];}
+//          if(coupled && (geoData->getStartGhostedCoarseNode(dim)*geoData->getCoarseningRate(dim)
+//                         > geoData->getStartIndex(dim))) {--coarseIdx[dim];}
+//        }
+//      }
       for(int dim = 0; dim < 3; ++dim) {
-        if(singleCoarsePoint
+        if(geoData->isSingleCoarsePoint()
            && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
           coarseIdx[dim] = 0;
         } else {
-          coarseIdx[dim] = ghostedIdx[dim] / geoData->getCoarseningRate(dim);
-          rem    = ghostedIdx[dim] % geoData->getCoarseningRate(dim);
-          if(ghostedIdx[dim] - geoData->getOffset(dim)
-             < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
-            rate = geoData->getCoarseningRate(dim);
-          } else {
-            rate = geoData->getCoarseningEndRate(dim);
+            if(ghostedIdx[dim]==0){
+                coarseIdx[dim] = 0;
+            } else { // TODO: These edits are for 1 2 2 2 1 style of aggregation.
+              coarseIdx[dim] = (ghostedIdx[dim]+1) / geoData->getCoarseningRate(dim);
+              rem    = (ghostedIdx[dim]+1) % geoData->getCoarseningRate(dim);
+              if((ghostedIdx[dim]+1) - geoData->getOffset(dim)
+                 < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
+                rate = geoData->getCoarseningRate(dim);
+              } else {
+                rate = geoData->getCoarseningEndRate(dim);
+              }
+              if(rem > (rate / 2)) {++coarseIdx[dim];}
+            }
+          if( (geoData->getStartGhostedCoarseNode(dim)*geoData->getCoarseningRate(dim)
+               > geoData->getStartIndex(dim)) && geoData->isAggregationCoupled() ) {
+            --coarseIdx[dim];
           }
-          if(rem > (rate / 2)) {++coarseIdx[dim];}
-          if(coupled && (geoData->getStartGhostedCoarseNode(dim)*geoData->getCoarseningRate(dim)
-                         > geoData->getStartIndex(dim))) {--coarseIdx[dim];}
         }
       }
 
@@ -320,6 +344,7 @@ namespace MueLu {
 
       geoData->getCoarseNodeGhostedLID(coarseIdx[0], coarseIdx[1], coarseIdx[2],
                                        ghostedCoarseNodeCoarseLID);
+      std::cout<<"p= "<<graph.GetDomainMap()->getComm()->getRank()<<" | LID: "<<ghostedCoarseNodeCoarseLID<<" nodeIdx: "<<nodeIdx<<std::endl;
 
       for(LO dof = 0; dof < dofsPerNode; ++dof) {
         nnzOnRow[nodeIdx*dofsPerNode + dof]         = 1;
