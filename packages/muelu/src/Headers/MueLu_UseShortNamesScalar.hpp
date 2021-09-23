@@ -185,6 +185,9 @@ typedef MueLu::MergedBlockedMatrixFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node
 #ifdef MUELU_MERGEDSMOOTHER_SHORT
 typedef MueLu::MergedSmoother<Scalar,LocalOrdinal,GlobalOrdinal,Node> MergedSmoother;
 #endif
+#ifdef MUELU_MUELUSMOOTHER_SHORT
+typedef MueLu::MueLuSmoother<Scalar,LocalOrdinal,GlobalOrdinal,Node> MueLuSmoother;
+#endif
 #ifdef MUELU_MULTIVECTORTRANSFERFACTORY_SHORT
 typedef MueLu::MultiVectorTransferFactory<Scalar,LocalOrdinal,GlobalOrdinal,Node> MultiVectorTransferFactory;
 #endif

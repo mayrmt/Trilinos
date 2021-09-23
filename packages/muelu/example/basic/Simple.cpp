@@ -70,6 +70,7 @@
 #ifdef HAVE_MUELU_EXPLICIT_INSTANTIATION
 #include <MueLu_ExplicitInstantiation.hpp>
 #endif
+#include <MueLu_HierarchyManager.hpp>
 #include <MueLu_Level.hpp>
 #include <MueLu_MutuallyExclusiveTime.hpp>
 #include <MueLu_ParameterListInterpreter.hpp>
@@ -125,7 +126,7 @@ int main_(Teuchos::CommandLineProcessor &clp, Xpetra::UnderlyingLib& lib, int ar
   std::string coordFile;                              clp.setOption("coords",                &coordFile,         "coordinates data file");
   std::string coordMapFile;                           clp.setOption("coordsmap",             &coordMapFile,      "coordinates map data file");
   std::string nullFile;                               clp.setOption("nullspace",             &nullFile,          "nullspace data file");
-  std::string materialFile;                           clp.setOption("material",              &materialFile,      "material data file");    
+  std::string materialFile;                           clp.setOption("material",              &materialFile,      "material data file");
   int         maxIts            = 200;                clp.setOption("its",                   &maxIts,            "maximum number of solver iterations");
   int         numVectors        = 1;                  clp.setOption("multivector",           &numVectors,        "number of rhs to solve simultaneously");
   bool        scaleResidualHist = true;               clp.setOption("scale", "noscale",      &scaleResidualHist, "scaled Krylov residual history");

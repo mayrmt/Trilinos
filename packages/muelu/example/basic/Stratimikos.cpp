@@ -76,6 +76,7 @@ The source code is not MueLu specific and can be used with any Stratimikos strat
 #include <Xpetra_Parameters.hpp>
 
 // MueLu includes
+#include <MueLu_HierarchyManager.hpp>
 #include <Thyra_MueLuPreconditionerFactory.hpp>
 #include <MatrixLoad.hpp>
 
