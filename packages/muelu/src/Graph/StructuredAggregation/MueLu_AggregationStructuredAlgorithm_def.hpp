@@ -344,7 +344,7 @@ namespace MueLu {
 
       geoData->getCoarseNodeGhostedLID(coarseIdx[0], coarseIdx[1], coarseIdx[2],
                                        ghostedCoarseNodeCoarseLID);
-      std::cout<<"p= "<<graph.GetDomainMap()->getComm()->getRank()<<" | LID: "<<ghostedCoarseNodeCoarseLID<<" nodeIdx: "<<nodeIdx<<std::endl;
+      // std::cout<<"p= "<<graph.GetDomainMap()->getComm()->getRank()<<" | LID: "<<ghostedCoarseNodeCoarseLID<<" nodeIdx: "<<nodeIdx<<std::endl;
 
       for(LO dof = 0; dof < dofsPerNode; ++dof) {
         nnzOnRow[nodeIdx*dofsPerNode + dof]         = 1;

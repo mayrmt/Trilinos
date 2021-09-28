@@ -1016,8 +1016,8 @@ int main(int argc, char *argv[]) {
           ++countLocal;
         }
       }
-      std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
-      std::cout << "p=" << myRank << " | gidRemap: " << gidRemap() << std::endl;
+      // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
+      // std::cout << "p=" << myRank << " | gidRemap: " << gidRemap() << std::endl;
       // std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
 
       LO numLocalRegionNodes = 1;
@@ -1114,8 +1114,8 @@ int main(int argc, char *argv[]) {
       }
 
       const LO numLocalCompositeNodes = localPanzerLID2stkLID.size();
-      std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
-                << ", lNodesPerDim: " << lNodesPerDim << std::endl;
+      // std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
+      //           << ", lNodesPerDim: " << lNodesPerDim << std::endl;
 
       // Rule for boundary duplication
       // For any two ranks that share an interface:
@@ -1198,7 +1198,7 @@ int main(int argc, char *argv[]) {
             compositeToRegionLIDsNoRemap[localPanzerLIDRemap[nodeIdx]*numDofsPerNode + dofIdx];
         }
       }
-      std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
+      // std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
 
       std::cout << "p=" << myRank << " | quasiRegionGIDs" << std::endl;
       for(int nodeIdx = 0; nodeIdx < numLocalRegionNodes; ++nodeIdx) {
@@ -1223,9 +1223,9 @@ int main(int argc, char *argv[]) {
 
       const LO numSend = static_cast<LO>(sendGIDs.size());
 
-      std::cout << "p=" << myRank << " | numSend=" << numSend << std::endl;
-      std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
-      std::cout << "p=" << myRank << " | sendPIDs: " << sendPIDs << std::endl;
+      // std::cout << "p=" << myRank << " | numSend=" << numSend << std::endl;
+      // std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
+      // std::cout << "p=" << myRank << " | sendPIDs: " << sendPIDs << std::endl;
 
       int leftBC = 0, rightBC = 0, frontBC = 0, backBC = 0, bottomBC = 0, topBC = 0;
       topBC = 0;
@@ -1256,11 +1256,11 @@ int main(int argc, char *argv[]) {
       interfaceParams->set<Array<LO> >("interfaces: nodes per dimensions", interfacesDimensions); // nodesPerDimensions);
       interfaceParams->set<Array<LO> >("interfaces: interface nodes",      interfacesLIDs); // interfaceLIDs);
 
-      std::cout << "p=" << myRank << " | compositeGIDs (" << dofGIDs.size() << "): " << dofGIDs() << std::endl;
-      std::cout << "p=" << myRank << " | quasiRegionGIDs (" << quasiRegionGIDs.size() << "): " << quasiRegionGIDs << std::endl;
-      std::cout << "p=" << myRank << " | colMapGIDs: (" << A->getColMap()->getNodeElementList().size() << ")" << A->getColMap()->getNodeElementList() << std::endl;
+      // std::cout << "p=" << myRank << " | compositeGIDs (" << dofGIDs.size() << "): " << dofGIDs() << std::endl;
+      // std::cout << "p=" << myRank << " | quasiRegionGIDs (" << quasiRegionGIDs.size() << "): " << quasiRegionGIDs << std::endl;
+      // std::cout << "p=" << myRank << " | colMapGIDs: (" << A->getColMap()->getNodeElementList().size() << ")" << A->getColMap()->getNodeElementList() << std::endl;
       //std::cout << "p=" << myRank << " | interfaceGIDs: " << interfaceGIDs << std::endl;
-      std::cout << "p=" << myRank << " | interfaceLIDsData("<<interfaceLIDsData.size()<<"): " << interfaceLIDsData << std::endl;
+      // std::cout << "p=" << myRank << " | interfaceLIDsData("<<interfaceLIDsData.size()<<"): " << interfaceLIDsData << std::endl;
       // std::cout << "p=" << myRank << " | interfaceLIDs: " << interfaceLIDs << std::endl;
       // std::cout << "p=" << myRank << " | quasiRegionCoordGIDs: " << quasiRegionCoordGIDs() << std::endl;
 
@@ -1338,11 +1338,11 @@ int main(int argc, char *argv[]) {
                                  sendPIDs, interfaceLIDsData,
                                  regionsPerGIDWithGhosts, interfaceGIDsMV);
 
-      {
-        comm->barrier();
-        RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-        regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
-      }
+      // {
+      //   comm->barrier();
+      //   RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+      //   regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
+      // }
 
       if(myRank == 1) { std::cout << "MakeRegionPerGIDWithGhosts: done" << std::endl;}
 
@@ -1353,7 +1353,7 @@ int main(int argc, char *argv[]) {
 
       if(myRank == 1) { std::cout << "SetupMatVec: done" << std::endl;}
 
-      regionInterfaceImporter->print(std::cout);
+      // regionInterfaceImporter->print(std::cout);
 
       comm->barrier();
       tmLocal = Teuchos::null;
@@ -1381,19 +1381,19 @@ int main(int argc, char *argv[]) {
                 << ", rNodePerDim: " << rNodesPerDim << std::endl;
 
       ////////////////////////////////////////
-      {
-        sleep(1);
-        std::cout<<"Amat:"<<std::endl;
-        RCP<Teuchos::FancyOStream> fancy2 = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-        Teuchos::FancyOStream& out2 = *fancy2;
-        comm->barrier();
-        A->describe(out2, Teuchos::VERB_EXTREME);
-        comm->barrier();
-        std::cout<<"________________________________________________"<<std::endl;
-        comm->barrier();
-        regionMats->describe(out2, Teuchos::VERB_EXTREME);
-        comm->barrier();
-      }
+      // {
+      //   sleep(1);
+      //   std::cout<<"Amat:"<<std::endl;
+      //   RCP<Teuchos::FancyOStream> fancy2 = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+      //   Teuchos::FancyOStream& out2 = *fancy2;
+      //   comm->barrier();
+      //   A->describe(out2, Teuchos::VERB_EXTREME);
+      //   comm->barrier();
+      //   std::cout<<"________________________________________________"<<std::endl;
+      //   comm->barrier();
+      //   regionMats->describe(out2, Teuchos::VERB_EXTREME);
+      //   comm->barrier();
+      // }
 {
   using TST            = Teuchos::ScalarTraits<SC>;
   using magnitude_type = typename TST::magnitudeType;
@@ -1471,14 +1471,14 @@ int main(int argc, char *argv[]) {
       regionNullspace->doImport(*nullspace, *rowImport, Xpetra::INSERT);
       regionNullspace->replaceMap(regionRowMap);
 
-      regionNullspace->describe(*fancydebug, Teuchos::VERB_EXTREME);
+      // regionNullspace->describe(*fancydebug, Teuchos::VERB_EXTREME);
 
       // create region coordinates vector
       regionCoordinates = Xpetra::MultiVectorFactory<real_type,LO,GO,NO>::Build(quasiRegCoordMap, // TODO: this can't remain commented
                                                                                 coordinates->getNumVectors());
       regionCoordinates->doImport(*coordinates, *coordImporter, Xpetra::INSERT);
       regionCoordinates->replaceMap(regCoordMap);
-      regionCoordinates->describe(*fancydebug, Teuchos::VERB_EXTREME);
+      // regionCoordinates->describe(*fancydebug, Teuchos::VERB_EXTREME);
 
       // using Tpetra_CrsMatrix = Tpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
       // using Tpetra_MultiVector = Tpetra::MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
