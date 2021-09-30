@@ -119,8 +119,8 @@ namespace MueLu {
           meshEdge[2*dim]     = true;
           meshEdge[2*dim + 1] = true;
           //endRate[dim] = (lFineNodesPerDir[dim] - 1) % coarseRate[dim];
-          endRate[dim] = (lFineNodesPerDir[dim] - 2) % coarseRate[dim]; // this is for 1 2 2 2 1 style aggregation
-          //endRate[dim] = (lFineNodesPerDir[dim] ) % coarseRate[dim]; // This is for 2 2 2 2 style aggregation
+          //endRate[dim] = (lFineNodesPerDir[dim] - 2) % coarseRate[dim]; // TODO: this is for 1 2 2 2 1 style aggregation
+          endRate[dim] = (lFineNodesPerDir[dim] ) % coarseRate[dim];  // for agg 2222, no end singletons// This is for 2 2 2 2 style aggregation
         }
         if(endRate[dim] == 0) {endRate[dim] = coarseRate[dim];}
 
@@ -197,8 +197,10 @@ namespace MueLu {
         // require a particular treatment at the boundaries.
         if( meshEdge[2*dim + 1] ) {
           lCoarseNodesPerDir[dim] = (lFineNodesPerDir[dim] - endRate[dim] + offsets[dim] - 1)
-            / coarseRate[dim] + 2; //TODO: this changed for 1 2 2 2 1 aggregation.
+            / coarseRate[dim] + 1; // for agg 2222, no end singletons
+//            / coarseRate[dim] + 2; //TODO: this changed for 1 2 2 2 1 aggregation.
           if(offsets[dim] == 0) {++lCoarseNodesPerDir[dim];}
+          //std::cout<<"CoarseNodePerDir: "<<lCoarseNodesPerDir[dim]<<std::endl;
           // We might want to coarsening the direction
           // into a single layer if there are not enough
           // points left to form two aggregates

@@ -124,12 +124,12 @@ namespace MueLu {
            && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
           coarseIdx[dim] = 0;
         } else {
-            if(ghostedIdx[dim]==0){
+            if(ghostedIdx[dim]==-10){ // for agg 2222, no end singletons
                 coarseIdx[dim] = 0;
             } else { // TODO: These edits are for 1 2 2 2 1 style of aggregation.
-              coarseIdx[dim] = (ghostedIdx[dim]+1) / geoData->getCoarseningRate(dim);
-              rem    = (ghostedIdx[dim]+1) % geoData->getCoarseningRate(dim);
-              if((ghostedIdx[dim]+1) - geoData->getOffset(dim)
+              coarseIdx[dim] = (ghostedIdx[dim]+0) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
+              rem    = (ghostedIdx[dim]+0) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
+              if((ghostedIdx[dim]+0) - geoData->getOffset(dim) // for agg 2222, no end singletons
                  < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
                 rate = geoData->getCoarseningRate(dim);
               } else {
@@ -146,6 +146,7 @@ namespace MueLu {
 
       geoData->getCoarseNodeGhostedLID(coarseIdx[0], coarseIdx[1], coarseIdx[2],
                                        ghostedCoarseNodeCoarseLID);
+      //std::cout<<"p= "<<graph.GetDomainMap()->getComm()->getRank()<<" | LID: "<<ghostedCoarseNodeCoarseLID<<" nodeIdx: "<<nodeIdx<<" aggId "<<ghostedCoarseNodeCoarseLIDs[ghostedCoarseNodeCoarseLID]<<std::endl;
 
       aggId                 = ghostedCoarseNodeCoarseLIDs[ghostedCoarseNodeCoarseLID];
       vertex2AggId[nodeIdx] = aggId;
@@ -322,18 +323,20 @@ namespace MueLu {
            && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
           coarseIdx[dim] = 0;
         } else {
-            if(ghostedIdx[dim]==0){
+            if(ghostedIdx[dim]==-10){ // for agg 2222, no end singletons
                 coarseIdx[dim] = 0;
             } else { // TODO: These edits are for 1 2 2 2 1 style of aggregation.
-              coarseIdx[dim] = (ghostedIdx[dim]+1) / geoData->getCoarseningRate(dim);
-              rem    = (ghostedIdx[dim]+1) % geoData->getCoarseningRate(dim);
-              if((ghostedIdx[dim]+1) - geoData->getOffset(dim)
+              coarseIdx[dim] = (ghostedIdx[dim]+0) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
+              rem    = (ghostedIdx[dim]+0) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
+              if((ghostedIdx[dim]+0) - geoData->getOffset(dim) // for agg 2222, no end singletons
                  < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
                 rate = geoData->getCoarseningRate(dim);
               } else {
                 rate = geoData->getCoarseningEndRate(dim);
               }
               if(rem > (rate / 2)) {++coarseIdx[dim];}
+              ///std::cout<<"coarse["<<dim<<"] "<<coarseIdx[dim]<<" gFine["<<dim<<"] "<<ghostedIdx[dim]<<std::endl;
+
             }
           if( (geoData->getStartGhostedCoarseNode(dim)*geoData->getCoarseningRate(dim)
                > geoData->getStartIndex(dim)) && geoData->isAggregationCoupled() ) {

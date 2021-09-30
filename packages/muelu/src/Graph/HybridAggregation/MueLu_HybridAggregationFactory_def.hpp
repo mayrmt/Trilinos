@@ -473,7 +473,8 @@ namespace MueLu {
       for(int interfaceIdx = 0; interfaceIdx < numInterfaces; ++interfaceIdx) {
         numCoarseNodes = 1;
         for(int dim = 0; dim < 3; ++dim) {
-          endRate = (interfacesDimensions[3*interfaceIdx + dim] - 1) % coarseRate[dim];
+          //endRate = (interfacesDimensions[3*interfaceIdx + dim] - 1) % coarseRate[dim];
+          endRate = (interfacesDimensions[3*interfaceIdx + dim] ) % coarseRate[dim]; // For agg 2222, no end singletons
           if(interfacesDimensions[3*interfaceIdx + dim] == 1) {
             coarseInterfacesDimensions[3*interfaceIdx + dim] = 1;
           } else {
@@ -497,7 +498,9 @@ namespace MueLu {
       for(int dim = 0; dim < 3; ++dim) {
         numInterfaceNodes *= fineNodesPerDim[dim];
         numCoarseNodes    *= coarseNodesPerDim[dim];
-        endRate[dim]       = (fineNodesPerDim[dim]-1) % coarseRate[dim];
+        //endRate[dim]       = (fineNodesPerDim[dim]-1) % coarseRate[dim];
+        endRate[dim]       = (fineNodesPerDim[dim]) % coarseRate[dim]; // for agg 2222, no end singletons
+        if(endRate[dim] == 0){ endRate[dim] = coarseRate[dim]; } // for agg 2222, no end singletons
       }
       ArrayView<LO> interfaceNodes = nodesOnInterfaces(interfaceOffset, numInterfaceNodes);
 
@@ -523,7 +526,7 @@ namespace MueLu {
         fineNodeIdx = (nodeIJK[2]*fineNodesPerDim[1] + nodeIJK[1])*fineNodesPerDim[0] + nodeIJK[0];
 
         if(aggStat[interfaceNodes[fineNodeIdx]] == READY) {
-          std::cout<<"Agg: "<<aggregateCount<<" fine center: "<<interfaceNodes[fineNodeIdx]<<std::endl;
+          //std::cout<<"Agg: "<<aggregateCount<<" fine center: "<<interfaceNodes[fineNodeIdx]<<std::endl;
           vertex2AggId[interfaceNodes[fineNodeIdx]] = aggregateCount;
           procWinner[interfaceNodes[fineNodeIdx]]   = myRank;
           aggStat[interfaceNodes[fineNodeIdx]]      = AGGREGATED;
@@ -548,8 +551,10 @@ namespace MueLu {
         nodeIJK[0] = rem % fineNodesPerDim[0];
 
         for(int dim = 0; dim < 3; ++dim) {
-          coarseIJK[dim] = (nodeIJK[dim]+1) / coarseRate[dim];
-          rem            = (nodeIJK[dim]+1) % coarseRate[dim];
+          coarseIJK[dim] = (nodeIJK[dim]) / coarseRate[dim]; // for agg 222, no end singletons
+          rem            = (nodeIJK[dim]) % coarseRate[dim]; // for agg 222, no end singletons
+          //coarseIJK[dim] = (nodeIJK[dim]+1) / coarseRate[dim];
+          //rem            = (nodeIJK[dim]+1) % coarseRate[dim];
           if(nodeIJK[dim] < fineNodesPerDim[dim] - endRate[dim]) {
             rate = coarseRate[dim];
           } else {
@@ -567,7 +572,7 @@ namespace MueLu {
         }
         fineNodeIdx = (nodeIJK[2]*fineNodesPerDim[1] + nodeIJK[1])*fineNodesPerDim[0] + nodeIJK[0];
 
-        std::cout<<"Agg: "<<vertex2AggId[interfaceNodes[fineNodeIdx]]<<" , nodeIdx: "<<interfaceNodes[nodeIdx]<<"fineNodeIdx: "<<interfaceNodes[fineNodeIdx]<<std::endl;
+        //std::cout<<"Agg: "<<vertex2AggId[interfaceNodes[fineNodeIdx]]<<" , nodeIdx: "<<interfaceNodes[nodeIdx]<<" AggCenter: fineNodeIdx: "<<interfaceNodes[fineNodeIdx]<<std::endl;
 
         vertex2AggId[interfaceNodes[nodeIdx]] = vertex2AggId[interfaceNodes[fineNodeIdx]];
         procWinner[interfaceNodes[nodeIdx]]   = myRank;
