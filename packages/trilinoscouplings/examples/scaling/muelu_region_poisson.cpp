@@ -602,6 +602,7 @@ int main(int argc, char *argv[]) {
     for(typename Array<GO>::size_type idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
       stkLID2panzerLID[panzerLID2stkLID[idx]] = idx;
     }
+      std::cout << "p=" << myRank << " | localPanzerLID2stkLID = " << localPanzerLID2stkLID << std::endl;
 
 
     if(dump_element_vertices)
@@ -646,11 +647,34 @@ int main(int argc, char *argv[]) {
       std::cout << "p=" << myRank << " | elemRemap = " << elemRemap << std::endl;
     }
 
+    std::cout<<"elemIJK: "<<elemIJK<<std::endl;
+
     LO numElmInRegion = (regionIJK[0])*(regionIJK[1])*(regionIJK[2]);
+
+    if(myRank == 5) {// TODO: update to use useUnstructured (defined below line 893)
+      for( int i = 0; i< numElm; i++){
+        elemRemap[i] = i;
+      }
+      numElmInRegion = panzerLID2stkLID.size();
+          std::cout<<"asdf "<<numElmInRegion<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
+      regionIJK[0] = 4;
+      regionIJK[1] = 4;
+      regionIJK[2] = 4;
+    }
+          std::cout<<myRank<<" asdf "<<panzerLID2stkLID.size()<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
+
 
     Teuchos::Array<LO> lidRemap;
     Teuchos::Array<GO> gidRemap;
     grabLIDsGIDsLexOrder(elemIJK, elemRemap, dofLID, dofManager, numElmInRegion, lidRemap, gidRemap);
+    if(myRank == 5) {// TODO: update to use useUnstructured (defined below line 893)
+      lidRemap.resize(numElmInRegion, -1);
+      gidRemap.resize(numElmInRegion, -1);
+      for( int i = 0; i< numElmInRegion; i++){
+        lidRemap[i] = i;
+        gidRemap[i] = panzerLID2panzerGID[i];
+      }
+    }
     Teuchos::Array<GO> gidStkRemap( lidRemap.size(), -1 );
     Teuchos::Array<GO> lidStkRemap( lidRemap.size(), -1 );
     for( int i=0; i<gidStkRemap.size(); i++){
@@ -844,6 +868,7 @@ int main(int argc, char *argv[]) {
     /**********************************************************************************/
     /************************************ REGION DRIVER *******************************/
     /**********************************************************************************/
+    std::cout<<"p = "<<myRank<<" | Begin REGION DRIVER"<<std::endl;
     {
       using Teuchos::RCP;
       using Teuchos::rcp;
@@ -912,6 +937,7 @@ int main(int argc, char *argv[]) {
       RCP<Vector> X = Xpetra::toXpetra(tp_container->get_x());
       RCP<Vector> B = Xpetra::toXpetra(tp_container->get_f());
 
+    std::cout<<"p = "<<myRank<<" | Matrix now Xpetra."<<std::endl;
 
       // The map of X, B and rowMap of A should all be the same
       // and correspond to the "dofMap" of the structured region
@@ -929,17 +955,24 @@ int main(int argc, char *argv[]) {
 
       Array<GO> dofGIDs = dofMap->getNodeElementList();
 
-      computeInterfaceNodes(mesh, /* true */ print_debug_info , numDofsPerNode,
+    std::cout<<"p = "<<myRank<<" | computeInterfaceNoddes."<<std::endl;
+
+      computeInterfaceNodes(mesh, true /* print_debug_info */, numDofsPerNode,
                             sendGIDs, sendPIDs, sendLIDs, receiveGIDs, receivePIDs, receiveLIDs,
                             quasiRegionNodeGIDs, quasiRegionDofGIDs);
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | computeInterfaceNoddes Done."<<std::endl;
+    dofMap->getComm()->barrier();
       for(int sendIdx = 0; sendIdx < static_cast<int>(sendGIDs.size()); ++sendIdx) {
         sendLIDs[sendIdx] = stkLID2panzerLID[sendLIDs[sendIdx]];
         sendGIDs[sendIdx] = dofGIDs[sendLIDs[sendIdx]];
       }
+    std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
       for(int receiveIdx = 0; receiveIdx < static_cast<int>(receiveGIDs.size()); ++receiveIdx) {
         receiveLIDs[receiveIdx] = stkLID2panzerLID[receiveLIDs[receiveIdx]];
         receiveGIDs[receiveIdx] = A->getColMap()->getGlobalElement(receiveLIDs[receiveIdx]);
       }
+    std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
 
       Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
       for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
@@ -1016,14 +1049,20 @@ int main(int argc, char *argv[]) {
           ++countLocal;
         }
       }
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | num local region nodes "<<countLocal<<std::endl;
+    dofMap->getComm()->barrier();
       // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
       // std::cout << "p=" << myRank << " | gidRemap: " << gidRemap() << std::endl;
-      // std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
+      std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
 
       LO numLocalRegionNodes = 1;
       for(int dimIdx = 0; dimIdx < static_cast<int>(numDimensions); ++dimIdx) {
         numLocalRegionNodes = numLocalRegionNodes*regionIJK[dimIdx];
       }
+    if(myRank == 5) {// TODO: update to use useUnstructured (defined below line 893)
+      numLocalRegionNodes = panzerLID2stkLID.size();
+    }
 
       // {
       //   std::ostringstream msg;
@@ -1101,6 +1140,10 @@ int main(int argc, char *argv[]) {
       comm->barrier();
       tm = Teuchos::null;
 
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | compute region data"<<std::endl;
+    dofMap->getComm()->barrier();
+
       tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 2 - Compute region data")));
       if(myRank == 1) { std::cout << "Driver: 2 - Compute region data" << std::endl;}
 
@@ -1114,8 +1157,8 @@ int main(int argc, char *argv[]) {
       }
 
       const LO numLocalCompositeNodes = localPanzerLID2stkLID.size();
-      // std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
-      //           << ", lNodesPerDim: " << lNodesPerDim << std::endl;
+       std::cout << "p=" << myRank << " | numLocalCompositeNodes: " << numLocalCompositeNodes
+                 << ", lNodesPerDim: " << lNodesPerDim << std::endl;
 
       // Rule for boundary duplication
       // For any two ranks that share an interface:
@@ -1146,19 +1189,32 @@ int main(int argc, char *argv[]) {
       }
       int numMyInterfaceNodes = sendLIDs.size() - count;
 
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | asdf1 myInterfaceNodes: "<<numMyInterfaceNodes<<std::endl;
+    dofMap->getComm()->barrier();
+
       // First we count how many nodes the region needs to send and receive
       // and allocate arrays accordingly
       Array<int> boundaryConditions;
       const int maxRegPerGID = eBlocks.size();
       const int numInterfaceNodes = numLocalRegionNodes - numLocalCompositeNodes;
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | numInterfaceNodes: "<<numInterfaceNodes<<std::endl;
+    dofMap->getComm()->barrier();
       Array<LO>  rNodesPerDim = lNodesPerDim;
       Array<LO>  compositeToRegionLIDs(numLocalCompositeNodes*numDofsPerNode);
       Array<GO>  quasiRegionGIDs(numLocalRegionNodes*numDofsPerNode);
       Array<GO>  quasiRegionCoordGIDs(numLocalRegionNodes);
       interfaceLIDsData.resize((numLocalRegionNodes - numLocalCompositeNodes + numMyInterfaceNodes)*numDofsPerNode);
       //interfaceGIDs.resize((numLocalRegionNodes - numLocalCompositeNodes + numMyInterfaceNodes)*numDofsPerNode);
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | asdf2"<<std::endl;
+    dofMap->getComm()->barrier();
 
+      Array<LO>  myReceiveLIDs( numInterfaceNodes );
+      int rIdx = 0;
       Array<LO>  compositeToRegionLIDsNoRemap(numLocalCompositeNodes*numDofsPerNode);
+
       {
         int compositeNodeIdx = 0, interfaceNodeIdx = 0;
         for(int regionIdx = 0; regionIdx < numLocalRegionNodes; ++regionIdx) {
@@ -1182,6 +1238,8 @@ int main(int argc, char *argv[]) {
             for(int dofIdx = 0; dofIdx < numDofsPerNode; ++dofIdx) {
               interfaceLIDsData[interfaceNodeIdx*numDofsPerNode + dofIdx] = regionIdx*numDofsPerNode + dofIdx;
             }
+            myReceiveLIDs[rIdx] = regionIdx;
+            rIdx++;
             ++interfaceNodeIdx;
           }
         }
@@ -1190,6 +1248,9 @@ int main(int argc, char *argv[]) {
                   << "), numInterfaceNodes (" << numInterfaceNodes
                   << ") == interfaceNodeIdx (" << interfaceNodeIdx << ")" << std::endl;
       }
+    dofMap->getComm()->barrier();
+    std::cout<<"p = "<<myRank<<" | asdf3"<<std::endl;
+    dofMap->getComm()->barrier();
 
       std::cout << "p=" << myRank << " | compositeToRegionLIDs" << std::endl;
       for(int nodeIdx = 0; nodeIdx < numLocalCompositeNodes; ++nodeIdx) {
@@ -1198,7 +1259,7 @@ int main(int argc, char *argv[]) {
             compositeToRegionLIDsNoRemap[localPanzerLIDRemap[nodeIdx]*numDofsPerNode + dofIdx];
         }
       }
-      // std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
+      std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
 
       std::cout << "p=" << myRank << " | quasiRegionGIDs" << std::endl;
       for(int nodeIdx = 0; nodeIdx < numLocalRegionNodes; ++nodeIdx) {
@@ -1227,9 +1288,9 @@ int main(int argc, char *argv[]) {
       // std::cout << "p=" << myRank << " | sendGIDs: " << sendGIDs << std::endl;
       // std::cout << "p=" << myRank << " | sendPIDs: " << sendPIDs << std::endl;
 
-      int leftBC = 0, rightBC = 0, frontBC = 0, backBC = 0, bottomBC = 0, topBC = 0;
-      topBC = 0;
-      bottomBC = 0;
+      int leftBC = 0, rightBC = 1, frontBC = 1, backBC = 1, bottomBC = 1, topBC = 1;
+      topBC = 1;
+      bottomBC = 1;
   boundaryConditions.resize(6);
   boundaryConditions[0] = leftBC  ;
   boundaryConditions[1] = rightBC ;
@@ -1244,6 +1305,7 @@ int main(int argc, char *argv[]) {
       if(useUnstructured) {
         findInterface(numDimensions, rNodesPerDim, boundaryConditions,
                       interfacesDimensions, interfacesLIDs);
+//interfacesLIDs = myReceiveLIDs;
 
         // std::cout << "p=" << myRank << " | numLocalRegionNodes=" << numLocalRegionNodes
         //           << ", rNodesPerDim: " << rNodesPerDim << std::endl;
@@ -1318,7 +1380,7 @@ int main(int argc, char *argv[]) {
       colImport = ImportFactory::Build(dofMap, quasiColMap);
       RCP<Import> coordImporter = ImportFactory::Build(nodeMap, quasiRegCoordMap);
 
-      //rowImport->print(std::cout);
+      rowImport->print(std::cout);
       //coordImporter->print(std::cout);
 
       comm->barrier();
@@ -1328,7 +1390,7 @@ int main(int argc, char *argv[]) {
 
       Array<GO>  interfaceCompositeGIDs, interfaceRegionGIDs;
       ExtractListOfInterfaceRegionGIDs(regionRowMap, interfaceLIDsData, interfaceRegionGIDs);
-      std::cout << "p=" << myRank << " | ExtractListOfInterfaceRegionGIDs: done" << std::endl;
+      std::cout << "p=" << myRank << " | ExtractListOfInterfaceRegionGIDs: done " << interfaceRegionGIDs << std::endl;
 
       RCP<Xpetra::MultiVector<LO, LO, GO, NO> > regionsPerGIDWithGhosts;
       RCP<Xpetra::MultiVector<GO, LO, GO, NO> > interfaceGIDsMV;
@@ -1341,6 +1403,7 @@ int main(int argc, char *argv[]) {
       // {
       //   comm->barrier();
       //   RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+      //   interfaceGIDsMV->describe(*my_out, Teuchos::VERB_EXTREME);
       //   regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
       // }
 
