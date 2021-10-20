@@ -473,8 +473,8 @@ namespace MueLu {
       for(int interfaceIdx = 0; interfaceIdx < numInterfaces; ++interfaceIdx) {
         numCoarseNodes = 1;
         for(int dim = 0; dim < 3; ++dim) {
-          //endRate = (interfacesDimensions[3*interfaceIdx + dim] - 1) % coarseRate[dim];
-          endRate = (interfacesDimensions[3*interfaceIdx + dim] ) % coarseRate[dim]; // For agg 2222, no end singletons
+          endRate = (interfacesDimensions[3*interfaceIdx + dim] - 1) % coarseRate[dim]; // For agg 1221, end singletons
+          //endRate = (interfacesDimensions[3*interfaceIdx + dim] ) % coarseRate[dim]; // For agg 2222, no end singletons
           if(interfacesDimensions[3*interfaceIdx + dim] == 1) {
             coarseInterfacesDimensions[3*interfaceIdx + dim] = 1;
           } else {
@@ -498,8 +498,8 @@ namespace MueLu {
       for(int dim = 0; dim < 3; ++dim) {
         numInterfaceNodes *= fineNodesPerDim[dim];
         numCoarseNodes    *= coarseNodesPerDim[dim];
-        //endRate[dim]       = (fineNodesPerDim[dim]-1) % coarseRate[dim];
-        endRate[dim]       = (fineNodesPerDim[dim]) % coarseRate[dim]; // for agg 2222, no end singletons
+        endRate[dim]       = (fineNodesPerDim[dim]-1) % coarseRate[dim]; // for agg 1221, end singletons
+        //endRate[dim]       = (fineNodesPerDim[dim]) % coarseRate[dim]; // for agg 2222, no end singletons
         if(endRate[dim] == 0){ endRate[dim] = coarseRate[dim]; } // for agg 2222, no end singletons
       }
       ArrayView<LO> interfaceNodes = nodesOnInterfaces(interfaceOffset, numInterfaceNodes);
@@ -551,10 +551,10 @@ namespace MueLu {
         nodeIJK[0] = rem % fineNodesPerDim[0];
 
         for(int dim = 0; dim < 3; ++dim) {
-          coarseIJK[dim] = (nodeIJK[dim]) / coarseRate[dim]; // for agg 222, no end singletons
-          rem            = (nodeIJK[dim]) % coarseRate[dim]; // for agg 222, no end singletons
-          //coarseIJK[dim] = (nodeIJK[dim]+1) / coarseRate[dim];
-          //rem            = (nodeIJK[dim]+1) % coarseRate[dim];
+          //coarseIJK[dim] = (nodeIJK[dim]) / coarseRate[dim]; // for agg 222, no end singletons
+          //rem            = (nodeIJK[dim]) % coarseRate[dim]; // for agg 222, no end singletons
+          coarseIJK[dim] = (nodeIJK[dim]+1) / coarseRate[dim]; // for agg 1221, end singletons
+          rem            = (nodeIJK[dim]+1) % coarseRate[dim]; // for agg 1221, end singletons
           if(nodeIJK[dim] < fineNodesPerDim[dim] - endRate[dim]) {
             rate = coarseRate[dim];
           } else {

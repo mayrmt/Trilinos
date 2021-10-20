@@ -320,6 +320,7 @@ void findPanzer2StkMapping(Teuchos::RCP<const panzer_stk::STK_Interface> mesh,
           panzerLID2stkLID[ dofLID(ielem,ivert) ] = getLIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
           panzerLID2stkGID[ dofLID(ielem,ivert) ] = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
           panzerLID2panzerGID[ dofLID(ielem,ivert) ] = elmGIDs[ivert];
+          break;
         }
       }
     }
@@ -364,6 +365,7 @@ void findPanzer2StkMappingOwned(Teuchos::RCP<const panzer_stk::STK_Interface> me
           panzerLID2stkLID[ dofLID(ielem,ivert) ] = getLIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
           panzerLID2stkGID[ dofLID(ielem,ivert) ] = getGIDfromSTKNode(mesh->getBulkData(), nodes[nodeIdx]);
           panzerLID2panzerGID[ dofLID(ielem,ivert) ] = elmGIDs[ivert];
+          break;
         }
       }
     }
@@ -408,7 +410,8 @@ void computeInterfaceNodes(
     Teuchos::Array<int>& receivePIDs,
     Teuchos::Array<panzer::LocalOrdinal>& receiveLIDs,
     Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionNodeGIDs, ///< This rank's node GIDs in quasiRegion format
-    Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs ///< This rank's DOF GIDs in quasiRegion format
+    Teuchos::Array<panzer::GlobalOrdinal>& quasiRegionDofGIDs, ///< This rank's DOF GIDs in quasiRegion format
+    Teuchos::Array<panzer::GlobalOrdinal>& interfaceGIDs ///< This rank's DOF GIDs in quasiRegion format
     )
 {
   // Panzer types
@@ -624,7 +627,7 @@ void computeInterfaceNodes(
   // Here we gather the interface GIDs (in composite layout)
   // and the interface LIDs (in region layout) for the local rank
   Teuchos::Array<LocalOrdinal> interfaceLIDsData;
-  Teuchos::Array<GlobalOrdinal> interfaceGIDs;
+  //Teuchos::Array<GlobalOrdinal> interfaceGIDs;
   interfaceLIDsData.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
   interfaceGIDs.resize((sendGIDs.size() + receiveGIDs.size()) * numDofsPerNode);
   using size_type = typename Teuchos::Array<GO>::size_type;

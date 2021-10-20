@@ -243,6 +243,8 @@ void GSIterate(RCP<Teuchos::ParameterList> smootherParams,
     zeroInitGuess = false;
 
     if( sgs ){
+      computeResidual(regRes, regX, regB, regionMats, *smootherParams); // TODO: more testing of SGS.
+      delta->putScalar(0.0);
       for (size_t k = numRows; k--;) {
         // Extract a single row
         ArrayView<const LO> AAcols;

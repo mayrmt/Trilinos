@@ -187,9 +187,9 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     // This will allow us to later loop only on duplicated nodes
     size_t countComposites = 0, countDuplicates = 0;
     Array<LO> fineDuplicateLIDs(numFineDuplicateNodes);
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": compositeToRegionLID(" << compositeToRegionLIDs.size() << ")= "
-    //           << compositeToRegionLIDs << std::endl;
+//     std::cout << "p=" << myRank << " | level " << currentLevel
+//               << ": compositeToRegionLID(" << compositeToRegionLIDs.size() << ")= "
+//               << compositeToRegionLIDs << std::endl;
     for(size_t regionIdx = 0; regionIdx < numFineRegionNodes; ++regionIdx) {
       bool isDuplicate = true;
       if(currentLevel == 1) {
@@ -204,7 +204,7 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
           ++countDuplicates;
         }
       } else {
-        if(compositeToRegionLIDs[countComposites] == static_cast<LO>(regionIdx)) {
+        if( countComposites < compositeToRegionLIDs.size() && compositeToRegionLIDs[countComposites] == static_cast<LO>(regionIdx)) {
           ++countComposites;
         } else {
           fineDuplicateLIDs[countDuplicates] = regionIdx;
@@ -215,9 +215,11 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
 
     // std::cout << "p=" << myRank << " | level " << currentLevel
     //           << ": fineDuplicateLIDs " << fineDuplicateLIDs << std::endl;
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": countComposites=" << countComposites << ", countDuplicates=" << countDuplicates << std::endl;
-    RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+    regRowMapFine->getComm()->barrier();
+     std::cout << "p=" << myRank << " | level " << currentLevel
+               << ": countComposites=" << countComposites << ", countDuplicates=" << countDuplicates << std::endl;
+    regRowMapFine->getComm()->barrier();
+    //RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
     //regProlong->describe(*fos, Teuchos::VERB_EXTREME);
 
     // We gather the coarse GIDs associated with each fine point in the local composite mesh part.
@@ -225,8 +227,13 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
       = Xpetra::VectorFactory<GO,LO,GO,NO>::Build(regRowImportFine->getSourceMap(), false);
     Teuchos::ArrayRCP<GO> coarseCompositeGIDsData = coarseCompositeGIDs->getDataNonConst(0);
 
-    if(currentLevel > 1){
+//    regRowMapFine->getComm()->barrier();
+//     std::cout << "p=" << myRank << " | level " << currentLevel << ", other coarseCompositeGIDs. compositeToRegionLIDs:"<< compositeToRegionLIDs << std::endl;
+//    regRowMapFine->getComm()->barrier();
+
+    if(currentLevel > 1 ){
     for(size_t compositeNodeIdx = 0; compositeNodeIdx < numFineCompositeNodes; ++compositeNodeIdx) {
+//      std::cout<<"p= "<<myRank<<" COMP: "<<compositeNodeIdx<<" Reg: "<<compositeToRegionLIDs[compositeNodeIdx]<<std::endl;
       ArrayView<const LO> coarseRegionLID; // Should contain a single value
       ArrayView<const SC> dummyData; // Should contain a single value
       regProlong->getLocalRowView(compositeToRegionLIDs[compositeNodeIdx],
@@ -243,7 +250,7 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     } else {
 
 
-    regRowMapFine->getComm()->barrier();
+    //regRowMapFine->getComm()->barrier();
 
     size_t compositeNodeIdxCnt = 0;
     int blah = 0;
@@ -278,8 +285,8 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
 
     }
 
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": coarseCompositeGIDsData= " << coarseCompositeGIDsData() << std::endl;
+//     std::cout << "p=" << myRank << " | level " << currentLevel
+//               << ": coarseCompositeGIDsData= " << coarseCompositeGIDsData() << std::endl;
 
     // We communicate the above GIDs to their duplicate so that we can replace GIDs of the region
     // column map and form the quasiRegion column map.
@@ -291,7 +298,7 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
                         regRowMapFine,
                         regRowImportFine);
 
-    // std::cout<<"p= "<<myRank<<" | coarseQuasiregionGIDs: "<<coarseQuasiregionGIDs->getDataNonConst(0)()<<std::endl;
+//     std::cout<<"p= "<<myRank<<" | coarseQuasiregionGIDs: "<<coarseQuasiregionGIDs->getDataNonConst(0)()<<std::endl;
 
     RCP<Xpetra::MultiVector<LO,LO,GO,NO> > regionsPerGIDWithGhosts =
       Xpetra::MultiVectorFactory<LO,LO,GO,NO>::Build(regRowMapFine,
@@ -348,10 +355,10 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
         }
       }
     }
-      // {
-      //   RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-      //   regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
-      // }
+//       {
+//         RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+//         regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
+//       }
 
     Array<GO> fineRegionDuplicateCoarseLIDs(numFineDuplicateNodes);
     Array<GO> fineRegionDuplicateCoarseGIDs(numFineDuplicateNodes);
@@ -365,10 +372,10 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
       fineRegionDuplicateCoarseGIDs[duplicateIdx] = (coarseQuasiregionGIDs->getDataNonConst(0))[fineDuplicateLIDs[duplicateIdx]]; 
     }
 
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": fineRegionDuplicateCoarseLIDs " << fineRegionDuplicateCoarseLIDs << std::endl;
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": fineRegionDuplicateCoarseGIDs " << fineRegionDuplicateCoarseGIDs << std::endl;
+//     std::cout << "p=" << myRank << " | level " << currentLevel
+//               << ": fineRegionDuplicateCoarseLIDs " << fineRegionDuplicateCoarseLIDs << std::endl;
+//     std::cout << "p=" << myRank << " | level " << currentLevel
+//               << ": fineRegionDuplicateCoarseGIDs " << fineRegionDuplicateCoarseGIDs << std::endl;
 
     // Create the coarseQuasiregRowMap, it will be based on the coarseRegRowMap
     LO countCoarseComposites = 0;
@@ -395,14 +402,14 @@ void MakeCoarseLevelMaps(const int maxRegPerGID,
     coarseCompRowMapData.resize(countCoarseComposites);
     coarseCompositeToRegionLIDs.resize(countCoarseComposites);
 
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": coarseQuasiRegRowMapData(final) " << coarseQuasiRegRowMapData << std::endl;
+//    std::cout << "p=" << myRank << " | level " << currentLevel
+//              << ": coarseQuasiRegRowMapData(final) " << coarseQuasiRegRowMapData << std::endl;
 //    std::cout << "p=" << myRank << " | level " << currentLevel
 //              << ": countCoarseComposites= " << countCoarseComposites << std::endl;
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": coarseCompRowMap= " << coarseCompRowMapData << std::endl;
-    // std::cout << "p=" << myRank << " | level " << currentLevel
-    //           << ": coarseCompositeToRegionLIDs " << coarseCompositeToRegionLIDs << std::endl;
+//    std::cout << "p=" << myRank << " | level " << currentLevel
+//              << ": coarseCompRowMap= " << coarseCompRowMapData << std::endl;
+//    std::cout << "p=" << myRank << " | level " << currentLevel
+//              << ": coarseCompositeToRegionLIDs " << coarseCompositeToRegionLIDs << std::endl;
 
 
     // We are now ready to fill up the outputs
@@ -475,8 +482,8 @@ void MakeCoarseCompositeOperator(RCP<const Xpetra::Map<LocalOrdinal, GlobalOrdin
   coarseCompOp->setObjectLabel("coarse composite operator");
 
   RCP<Teuchos::FancyOStream> fos = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-  std::cout<<"CoarseCompOp:"<<std::endl;
-  compRowMap->getComm()->barrier();
+  //std::cout<<"CoarseCompOp:"<<std::endl;
+  //compRowMap->getComm()->barrier();
   //coarseCompOp->describe(*fos, Teuchos::VERB_EXTREME);
 
   // Create coarse composite coordinates for repartitioning

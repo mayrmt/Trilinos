@@ -124,12 +124,12 @@ namespace MueLu {
            && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
           coarseIdx[dim] = 0;
         } else {
-            if(ghostedIdx[dim]==-10){ // for agg 2222, no end singletons
+            if(ghostedIdx[dim]==0){ // for agg 2222, no end singletons, remove (always go to else clause)
                 coarseIdx[dim] = 0;
             } else { // TODO: These edits are for 1 2 2 2 1 style of aggregation.
-              coarseIdx[dim] = (ghostedIdx[dim]+0) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
-              rem    = (ghostedIdx[dim]+0) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
-              if((ghostedIdx[dim]+0) - geoData->getOffset(dim) // for agg 2222, no end singletons
+              coarseIdx[dim] = (ghostedIdx[dim]+1) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons, remove +1
+              rem    = (ghostedIdx[dim]+1) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons, remove +1
+              if((ghostedIdx[dim]+1) - geoData->getOffset(dim) // for agg 2222, no end singletons, remove +1
                  < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
                 rate = geoData->getCoarseningRate(dim);
               } else {
@@ -323,12 +323,12 @@ namespace MueLu {
            && (geoData->getLocalFineNodesInDir(dim) - 1 < geoData->getCoarseningRate(dim))) {
           coarseIdx[dim] = 0;
         } else {
-            if(ghostedIdx[dim]==-10){ // for agg 2222, no end singletons
+            if(ghostedIdx[dim]==0){ // for agg 2222, no end singletons, remove (always go to else clause)
                 coarseIdx[dim] = 0;
             } else { // TODO: These edits are for 1 2 2 2 1 style of aggregation.
-              coarseIdx[dim] = (ghostedIdx[dim]+0) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
-              rem    = (ghostedIdx[dim]+0) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons
-              if((ghostedIdx[dim]+0) - geoData->getOffset(dim) // for agg 2222, no end singletons
+              coarseIdx[dim] = (ghostedIdx[dim]+1) / geoData->getCoarseningRate(dim); // for agg 2222, no end singletons, remove +1
+              rem    = (ghostedIdx[dim]+1) % geoData->getCoarseningRate(dim); // for agg 2222, no end singletons, remove +1
+              if((ghostedIdx[dim]+1) - geoData->getOffset(dim) // for agg 2222, no end singletons, remove +1
                  < geoData->getLocalFineNodesInDir(dim) - geoData->getCoarseningEndRate(dim)) {
                 rate = geoData->getCoarseningRate(dim);
               } else {

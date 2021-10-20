@@ -41,6 +41,8 @@
 #include "MueLu_TpetraOperator.hpp"
 #include "MueLu_Utilities.hpp"
 
+#include <Xpetra_IO.hpp>
+
 #ifdef HAVE_MUELU_EXPLICIT_INSTANTIATION
 #include <MueLu_ExplicitInstantiation.hpp>
 #endif
@@ -324,7 +326,7 @@ int main(int argc, char *argv[]) {
     // setup the physics block
     Teuchos::RCP<Example::EquationSetFactory> eqset_factory = Teuchos::rcp(new Example::EquationSetFactory);
     Example::BCStrategyFactory bc_factory;
-    const std::size_t workset_size = 10; // TODO: this may be much larger in practice. experiment with it.
+    const std::size_t workset_size = 100; // TODO: this may be much larger in practice. experiment with it.
     const int discretization_order = 1;
 
     // grab the number and names of mesh blocks
@@ -385,6 +387,7 @@ int main(int argc, char *argv[]) {
           panzer::BC bc(bc_id, bctype, sideset_id, element_block_id, dof_name,
                         strategy, p);
           bcs.push_back(bc);
+          std::cout<<"Dirichlet size: "<<sidesets.size()<<std::endl;
         }
         const panzer::CellData volume_cell_data(workset_size, mesh->getCellTopology(eBlocks[i]));
 
@@ -602,7 +605,7 @@ int main(int argc, char *argv[]) {
     for(typename Array<GO>::size_type idx = 0; idx < panzerLID2stkLID.size(); ++idx) {
       stkLID2panzerLID[panzerLID2stkLID[idx]] = idx;
     }
-      std::cout << "p=" << myRank << " | localPanzerLID2stkLID = " << localPanzerLID2stkLID << std::endl;
+      //std::cout << "p=" << myRank << " | localPanzerLID2stkLID = " << localPanzerLID2stkLID << std::endl;
 
 
     if(dump_element_vertices)
@@ -640,7 +643,9 @@ int main(int argc, char *argv[]) {
     Teuchos::Array<LO> elemIJK(3,1);// IJK counts for elements (one less than nodes).
     Teuchos::Array<LO> regionIJK(3,1);// IJK counts for region format.
 
-    reorderLexElem(vertices, elemRemap, elemIJK, regionIJK);
+    if(myRank != 5){//TODO: update to useUnstructured
+      reorderLexElem(vertices, elemRemap, elemIJK, regionIJK);
+    }
     if (print_debug_info)
     {
       comm->barrier();
@@ -656,12 +661,12 @@ int main(int argc, char *argv[]) {
         elemRemap[i] = i;
       }
       numElmInRegion = panzerLID2stkLID.size();
-          std::cout<<"asdf "<<numElmInRegion<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
-      regionIJK[0] = 4;
-      regionIJK[1] = 4;
-      regionIJK[2] = 4;
+          //std::cout<<"asdf "<<numElmInRegion<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
+      regionIJK[0] = 18;
+      regionIJK[1] = 18;
+      regionIJK[2] = 18;
     }
-          std::cout<<myRank<<" asdf "<<panzerLID2stkLID.size()<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
+          //std::cout<<myRank<<" asdf "<<panzerLID2stkLID.size()<<" local: "<<localPanzerLID2stkLID.size()<<std::endl;
 
 
     Teuchos::Array<LO> lidRemap;
@@ -936,6 +941,8 @@ int main(int argc, char *argv[]) {
       RCP<Matrix> A = MueLu::TpetraCrs_To_XpetraMatrix<SC,LO,GO,NO>(tp_container->get_A());
       RCP<Vector> X = Xpetra::toXpetra(tp_container->get_x());
       RCP<Vector> B = Xpetra::toXpetra(tp_container->get_f());
+      //X->putScalar(1.0);
+      //B->putScalar(0.0);
 
     std::cout<<"p = "<<myRank<<" | Matrix now Xpetra."<<std::endl;
 
@@ -954,12 +961,13 @@ int main(int argc, char *argv[]) {
       }
 
       Array<GO> dofGIDs = dofMap->getNodeElementList();
+  Teuchos::Array<GlobalOrdinal> interfaceGIDs;
 
     std::cout<<"p = "<<myRank<<" | computeInterfaceNoddes."<<std::endl;
 
-      computeInterfaceNodes(mesh, true /* print_debug_info */, numDofsPerNode,
+      computeInterfaceNodes(mesh, /* true */ print_debug_info, numDofsPerNode,
                             sendGIDs, sendPIDs, sendLIDs, receiveGIDs, receivePIDs, receiveLIDs,
-                            quasiRegionNodeGIDs, quasiRegionDofGIDs);
+                            quasiRegionNodeGIDs, quasiRegionDofGIDs,interfaceGIDs);
     dofMap->getComm()->barrier();
     std::cout<<"p = "<<myRank<<" | computeInterfaceNoddes Done."<<std::endl;
     dofMap->getComm()->barrier();
@@ -967,23 +975,37 @@ int main(int argc, char *argv[]) {
         sendLIDs[sendIdx] = stkLID2panzerLID[sendLIDs[sendIdx]];
         sendGIDs[sendIdx] = dofGIDs[sendLIDs[sendIdx]];
       }
-    std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
+    //std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
       for(int receiveIdx = 0; receiveIdx < static_cast<int>(receiveGIDs.size()); ++receiveIdx) {
         receiveLIDs[receiveIdx] = stkLID2panzerLID[receiveLIDs[receiveIdx]];
         receiveGIDs[receiveIdx] = A->getColMap()->getGlobalElement(receiveLIDs[receiveIdx]);
       }
-    std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
+    //std::cout<<"p = "<<myRank<<" | receiveLIDs: "<<receiveLIDs<<std::endl;
 
-      Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
-      for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
+//      Array<GO> quasiRegionDofGIDsPanzer(quasiRegionDofGIDs);
+//      for(typename Array<GO>::size_type idx = 0; idx < quasiRegionDofGIDsPanzer.size(); ++idx) {
+//        LO idxpanzer = -1;
+//        for(typename Array<GO>::size_type i = 0; i < panzerLID2stkGID.size(); ++i) {
+//          if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
+//            idxpanzer = i;
+//            break;
+//          }
+//        }
+//        quasiRegionDofGIDsPanzer[idxpanzer] = panzerLID2panzerGID[idxpanzer];
+//      }
+
+      Array<GO> interfaceGIDsPanzer(interfaceGIDs.size());
+      Array<LO> interfacesLIDsPanzer(interfaceGIDs.size());
+      for(typename Array<GO>::size_type idx = 0; idx < interfaceGIDs.size(); ++idx) {
         LO idxpanzer = -1;
         for(typename Array<GO>::size_type i = 0; i < panzerLID2stkGID.size(); ++i) {
-          if( quasiRegionDofGIDs[idx] == panzerLID2stkGID[i] ){
+          if( interfaceGIDs[idx] == panzerLID2stkGID[i] ){
             idxpanzer = i;
             break;
           }
         }
-        quasiRegionDofGIDsPanzer[idxpanzer] = panzerLID2panzerGID[idxpanzer];
+        interfaceGIDsPanzer[idx] = panzerLID2panzerGID[idxpanzer];
+        interfacesLIDsPanzer[idx] = idxpanzer; // NOTE: THESE VALUES NOT USED.
       }
 
       // RCP<Map> quasiRegionRowMap = Teuchos::null;
@@ -1013,7 +1035,6 @@ int main(int argc, char *argv[]) {
       // they will then go through the composite to region
       // mechanism. Although we could probably go directly to
       // the region format?
-
       RCP<Xpetra::MultiVector<SC,LO,GO,NO> > nullspace =
         Xpetra::MultiVectorFactory<SC,LO,GO,NO>::Build(dofMap, 1, false);
       nullspace->putScalar(one);
@@ -1023,6 +1044,7 @@ int main(int argc, char *argv[]) {
       for(unsigned int dimIdx = 0; dimIdx < numDimensions; ++dimIdx) {
         coordsData[dimIdx] = coordinates->getDataNonConst(dimIdx);
       }
+      stk::mesh::Part* myRegion = mesh->getElementBlockPart(eBlocks[myRank]);
       stk::mesh::EntityVector localNodes;
       stk::mesh::FieldBase *localCoordinatesField =
         mesh->getMetaData()->get_field(stk::topology::NODE_RANK, "coordinates");
@@ -1038,6 +1060,660 @@ int main(int argc, char *argv[]) {
         }
       }
       // std::cout << "p=" << myRank << " | lidstkremap: " << lidStkRemap() << std::endl;
+      if( myRank == 5 ){
+      stk::mesh::EntityVector regNodes;
+      stk::mesh::get_entities(*mesh->getBulkData(), stk::topology::NODE_RANK, *myRegion, regNodes);
+      int bdyCnt = 0;
+      for(int nodeIdx = 0; nodeIdx < static_cast<int>(regNodes.size()); ++nodeIdx) {
+        double *nodeCoord = static_cast<double *>(stk::mesh::field_data(*localCoordinatesField, regNodes[nodeIdx]));
+        LO stkLID = getLIDfromSTKNode(mesh->getBulkData(), regNodes[nodeIdx]);
+        LO panzerLID = stkLID2panzerLID[stkLID];
+        if( nodeCoord[0] > 0.707 && nodeCoord[0] < 0.708 ){
+            std::cout<<"RANK: "<<myRank<<" panzerid "<<panzerLID<<" ("<<nodeCoord[0]<<", "<<nodeCoord[1]<<", "<<nodeCoord[2]<<")"<<std::endl;
+            int zijk=-1,yijk=-1;
+            if( lNodesPerDim[0] == 4 ){
+              if( nodeCoord[2] < -4.99)
+                  zijk++;
+              if( nodeCoord[2] <= 0.00001)
+                  zijk++;
+              if( nodeCoord[2] < -3.33)
+                  zijk++;
+              if( nodeCoord[2] < -1.66)
+                  zijk++;
+
+              if( nodeCoord[1] < 0.708)//
+                  yijk++;
+              if( nodeCoord[1] < 0.236)//
+                  yijk++;
+              if( nodeCoord[1] < -0.235)//
+                  yijk++;
+              if( nodeCoord[1] < -0.707)//
+                  yijk++;
+            }
+            if( lNodesPerDim[0] == 10 ){
+              if( nodeCoord[2] <= 0.0000001)
+                zijk++;
+              if( nodeCoord[2] < -0.55)
+                zijk++;
+              if( nodeCoord[2] < -1.11)
+                zijk++;
+              if( nodeCoord[2] < -1.66)
+                zijk++;
+              if( nodeCoord[2] < -2.22)
+                zijk++;
+              if( nodeCoord[2] < -2.77)
+                zijk++;
+              if( nodeCoord[2] < -3.33)
+                zijk++;
+              if( nodeCoord[2] < -3.88)
+                zijk++;
+              if( nodeCoord[2] < -4.44)
+                zijk++;
+              if( nodeCoord[2] < -4.999)
+                zijk++;
+
+
+
+              if( nodeCoord[1] < 0.7072)
+                yijk++;
+              if( nodeCoord[1] < 0.5500)
+                yijk++;
+              if( nodeCoord[1] < 0.3929)
+                yijk++;
+              if( nodeCoord[1] < 0.2358)
+                yijk++;
+              if( nodeCoord[1] < 0.0786)
+                yijk++;
+              if( nodeCoord[1] < -0.078)
+                yijk++;
+              if( nodeCoord[1] < -0.235)
+                yijk++;
+              if( nodeCoord[1] < -0.392)
+                yijk++;
+              if( nodeCoord[1] < -0.549)
+                yijk++;
+              if( nodeCoord[1] < -0.707)
+                yijk++;
+            }
+            if( lNodesPerDim[0] == 16 ){
+              if( nodeCoord[2] < -4.99)
+                  zijk++;
+              if( nodeCoord[2] <= 0.00001)
+                  zijk++;
+              if( nodeCoord[2] < -4.666)
+                  zijk++;
+              if( nodeCoord[2] < -4.333)
+                  zijk++;
+              if( nodeCoord[2] < -3.999)
+                  zijk++;
+              if( nodeCoord[2] < -3.66)
+                  zijk++;
+              if( nodeCoord[2] < -3.33)
+                  zijk++;
+              if( nodeCoord[2] < -2.999)
+                  zijk++;
+              if( nodeCoord[2] < -2.66)
+                  zijk++;
+              if( nodeCoord[2] < -2.33)
+                  zijk++;
+              if( nodeCoord[2] < -1.999)
+                  zijk++;
+              if( nodeCoord[2] < -1.66)
+                  zijk++;
+              if( nodeCoord[2] < -1.33)
+                  zijk++;
+              if( nodeCoord[2] < -0.999)
+                  zijk++;
+              if( nodeCoord[2] < -0.66)
+                  zijk++;
+              if( nodeCoord[2] < -0.33)
+                  zijk++;
+
+              if( nodeCoord[1] < 0.708)
+                  yijk++;
+              if( nodeCoord[1] < 0.613)
+                  yijk++;
+              if( nodeCoord[1] < 0.519)
+                  yijk++;
+              if( nodeCoord[1] < 0.425)
+                  yijk++;
+              if( nodeCoord[1] < 0.330)
+                  yijk++;
+              if( nodeCoord[1] < 0.236)
+                  yijk++;
+              if( nodeCoord[1] < 0.142)
+                  yijk++;
+              if( nodeCoord[1] < 0.0472)
+                  yijk++;
+              if( nodeCoord[1] < -0.047)
+                  yijk++;
+              if( nodeCoord[1] < -0.141)
+                  yijk++;
+              if( nodeCoord[1] < -0.235)
+                  yijk++;
+              if( nodeCoord[1] < -0.329)
+                  yijk++;
+              if( nodeCoord[1] < -0.424)
+                  yijk++;
+              if( nodeCoord[1] < -0.518)
+                  yijk++;
+              if( nodeCoord[1] < -0.612)
+                  yijk++;
+              if( nodeCoord[1] < -0.707)
+                  yijk++;
+
+            }
+            if( lNodesPerDim[0] == 18 ){
+              if( nodeCoord[1] < 0.624)
+                  yijk++;
+              if( nodeCoord[1] < 0.541)
+                  yijk++;
+              if( nodeCoord[1] < 0.458)
+                  yijk++;
+              if( nodeCoord[1] < 0.375)
+                  yijk++;
+              if( nodeCoord[1] < 0.292)
+                  yijk++;
+              if( nodeCoord[1] < 0.208)
+                  yijk++;
+              if( nodeCoord[1] < 0.125)
+                  yijk++;
+              if( nodeCoord[1] < 0.0416)
+                  yijk++;
+              if( nodeCoord[1] < -0.041)
+                  yijk++;
+              if( nodeCoord[1] < -0.124)
+                  yijk++;
+              if( nodeCoord[1] < -0.207)
+                  yijk++;
+              if( nodeCoord[1] < -0.291)
+                  yijk++;
+              if( nodeCoord[1] < -0.374)
+                  yijk++;
+              if( nodeCoord[1] < -0.457)
+                  yijk++;
+              if( nodeCoord[1] < -0.540)
+                  yijk++;
+              if( nodeCoord[1] < -0.623)
+                  yijk++;
+              if( nodeCoord[1] < -0.707)
+                  yijk++;
+              if( nodeCoord[1] < 0.708)
+                  yijk++;
+
+              if( nodeCoord[2] < 0.000001)
+                  zijk++;
+              if( nodeCoord[2] < -4.99)
+                  zijk++;
+              if( nodeCoord[2] < -4.70)
+                  zijk++;
+              if( nodeCoord[2] < -4.41)
+                  zijk++;
+              if( nodeCoord[2] < -4.11)
+                  zijk++;
+              if( nodeCoord[2] < -3.82)
+                  zijk++;
+              if( nodeCoord[2] < -3.52)
+                  zijk++;
+              if( nodeCoord[2] < -3.23)
+                  zijk++;
+              if( nodeCoord[2] < -2.94)
+                  zijk++;
+              if( nodeCoord[2] < -2.64)
+                  zijk++;
+              if( nodeCoord[2] < -2.35)
+                  zijk++;
+              if( nodeCoord[2] < -2.05)
+                  zijk++;
+              if( nodeCoord[2] < -1.76)
+                  zijk++;
+              if( nodeCoord[2] < -1.47)
+                  zijk++;
+              if( nodeCoord[2] < -1.17)
+                  zijk++;
+              if( nodeCoord[2] < -0.88)
+                  zijk++;
+              if( nodeCoord[2] < -0.58)
+                  zijk++;
+              if( nodeCoord[2] < -0.29)
+                  zijk++;
+            }
+            if( lNodesPerDim[0] == 34 ){
+             if( nodeCoord[1] < 0.708)
+                 yijk++;
+             if( nodeCoord[1] < 0.665)
+                 yijk++;
+             if( nodeCoord[1] < 0.622)
+                 yijk++;
+             if( nodeCoord[1] < 0.579)
+                 yijk++;
+             if( nodeCoord[1] < 0.536)
+                 yijk++;
+             if( nodeCoord[1] < 0.493)
+                 yijk++;
+             if( nodeCoord[1] < 0.450)
+                 yijk++;
+             if( nodeCoord[1] < 0.408)
+                 yijk++;
+             if( nodeCoord[1] < 0.365)
+                 yijk++;
+             if( nodeCoord[1] < 0.322)
+                 yijk++;
+             if( nodeCoord[1] < 0.279)
+                 yijk++;
+             if( nodeCoord[1] < 0.236)
+                 yijk++;
+             if( nodeCoord[1] < 0.193)
+                 yijk++;
+             if( nodeCoord[1] < 0.150)
+                 yijk++;
+             if( nodeCoord[1] < 0.108)
+                 yijk++;
+             if( nodeCoord[1] < 0.0643)
+                 yijk++;
+             if( nodeCoord[1] < 0.0215)
+                 yijk++;
+             if( nodeCoord[1] < -0.0214)
+                 yijk++;
+             if( nodeCoord[1] < -0.0642)
+                 yijk++;
+             if( nodeCoord[1] < -0.107)
+                 yijk++;
+             if( nodeCoord[1] < -0.149)
+                 yijk++;
+             if( nodeCoord[1] < -0.192)
+                 yijk++;
+             if( nodeCoord[1] < -0.235)
+                 yijk++;
+             if( nodeCoord[1] < -0.278)
+                 yijk++;
+             if( nodeCoord[1] < -0.321)
+                 yijk++;
+             if( nodeCoord[1] < -0.364)
+                 yijk++;
+             if( nodeCoord[1] < -0.407)
+                 yijk++;
+             if( nodeCoord[1] < -0.449)
+                 yijk++;
+             if( nodeCoord[1] < -0.492)
+                 yijk++;
+             if( nodeCoord[1] < -0.535)
+                 yijk++;
+             if( nodeCoord[1] < -0.578)
+                 yijk++;
+             if( nodeCoord[1] < -0.621)
+                 yijk++;
+             if( nodeCoord[1] < -0.664)
+                 yijk++;
+             if( nodeCoord[1] < -0.707)
+                 yijk++;
+
+             if( nodeCoord[2] < -4.99)
+                 zijk++;
+             if( nodeCoord[2] < -4.848)
+                 zijk++;
+             if( nodeCoord[2] < -4.696)
+                 zijk++;
+             if( nodeCoord[2] < -4.545)
+                 zijk++;
+             if( nodeCoord[2] < -4.393)
+                 zijk++;
+             if( nodeCoord[2] < -4.242)
+                 zijk++;
+             if( nodeCoord[2] < -4.090)
+                 zijk++;
+             if( nodeCoord[2] < -3.939)
+                 zijk++;
+             if( nodeCoord[2] < -3.787)
+                 zijk++;
+             if( nodeCoord[2] < -3.636)
+                 zijk++;
+             if( nodeCoord[2] < -3.484)
+                 zijk++;
+             if( nodeCoord[2] < -3.333)
+                 zijk++;
+             if( nodeCoord[2] < -3.181)
+                 zijk++;
+             if( nodeCoord[2] < -3.030)
+                 zijk++;
+             if( nodeCoord[2] < -2.878)
+                 zijk++;
+             if( nodeCoord[2] < -2.727)
+                 zijk++;
+             if( nodeCoord[2] < -2.575)
+                 zijk++;
+             if( nodeCoord[2] < -2.424)
+                 zijk++;
+             if( nodeCoord[2] < -2.272)
+                 zijk++;
+             if( nodeCoord[2] < -2.121)
+                 zijk++;
+             if( nodeCoord[2] < -1.969)
+                 zijk++;
+             if( nodeCoord[2] < -1.818)
+                 zijk++;
+             if( nodeCoord[2] < -1.666)
+                 zijk++;
+             if( nodeCoord[2] < -1.515)
+                 zijk++;
+             if( nodeCoord[2] < -1.363)
+                 zijk++;
+             if( nodeCoord[2] < -1.212)
+                 zijk++;
+             if( nodeCoord[2] < -1.060)
+                 zijk++;
+             if( nodeCoord[2] < -0.909)
+                 zijk++;
+             if( nodeCoord[2] < -0.757)
+                 zijk++;
+             if( nodeCoord[2] < -0.606)
+                 zijk++;
+             if( nodeCoord[2] < -0.454)
+                 zijk++;
+             if( nodeCoord[2] < -0.303)
+                 zijk++;
+             if( nodeCoord[2] < -0.151)
+                 zijk++;
+             if( nodeCoord[2] < 0.0001)
+                 zijk++;
+
+            }
+            if( lNodesPerDim[0] == 66 ){
+              if( nodeCoord[1] < 0.686)
+                  yijk++;
+              if( nodeCoord[1] < 0.664)
+                  yijk++;
+              if( nodeCoord[1] < 0.642)
+                  yijk++;
+              if( nodeCoord[1] < 0.621)
+                  yijk++;
+              if( nodeCoord[1] < 0.599)
+                  yijk++;
+              if( nodeCoord[1] < 0.577)
+                  yijk++;
+              if( nodeCoord[1] < 0.555)
+                  yijk++;
+              if( nodeCoord[1] < 0.534)
+                  yijk++;
+              if( nodeCoord[1] < 0.512)
+                  yijk++;
+              if( nodeCoord[1] < 0.490)
+                  yijk++;
+              if( nodeCoord[1] < 0.468)
+                  yijk++;
+              if( nodeCoord[1] < 0.447)
+                  yijk++;
+              if( nodeCoord[1] < 0.425)
+                  yijk++;
+              if( nodeCoord[1] < 0.403)
+                  yijk++;
+              if( nodeCoord[1] < 0.381)
+                  yijk++;
+              if( nodeCoord[1] < 0.359)
+                  yijk++;
+              if( nodeCoord[1] < 0.338)
+                  yijk++;
+              if( nodeCoord[1] < 0.316)
+                  yijk++;
+              if( nodeCoord[1] < 0.294)
+                  yijk++;
+              if( nodeCoord[1] < 0.272)
+                  yijk++;
+              if( nodeCoord[1] < 0.251)
+                  yijk++;
+              if( nodeCoord[1] < 0.229)
+                  yijk++;
+              if( nodeCoord[1] < 0.207)
+                  yijk++;
+              if( nodeCoord[1] < 0.185)
+                  yijk++;
+              if( nodeCoord[1] < 0.164)
+                  yijk++;
+              if( nodeCoord[1] < 0.142)
+                  yijk++;
+              if( nodeCoord[1] < 0.120)
+                  yijk++;
+              if( nodeCoord[1] < 0.098)
+                  yijk++;
+              if( nodeCoord[1] < 0.077)
+                  yijk++;
+              if( nodeCoord[1] < 0.055)
+                  yijk++;
+              if( nodeCoord[1] < 0.033)
+                  yijk++;
+              if( nodeCoord[1] < 0.011)
+                  yijk++;
+              if( nodeCoord[1] < -0.010)
+                  yijk++;
+              if( nodeCoord[1] < -0.032)
+                  yijk++;
+              if( nodeCoord[1] < -0.054)
+                  yijk++;
+              if( nodeCoord[1] < -0.076)
+                  yijk++;
+              if( nodeCoord[1] < -0.097)
+                  yijk++;
+              if( nodeCoord[1] < -0.119)
+                  yijk++;
+              if( nodeCoord[1] < -0.141)
+                  yijk++;
+              if( nodeCoord[1] < -0.163)
+                  yijk++;
+              if( nodeCoord[1] < -0.184)
+                  yijk++;
+              if( nodeCoord[1] < -0.206)
+                  yijk++;
+              if( nodeCoord[1] < -0.228)
+                  yijk++;
+              if( nodeCoord[1] < -0.250)
+                  yijk++;
+              if( nodeCoord[1] < -0.271)
+                  yijk++;
+              if( nodeCoord[1] < -0.293)
+                  yijk++;
+              if( nodeCoord[1] < -0.315)
+                  yijk++;
+              if( nodeCoord[1] < -0.337)
+                  yijk++;
+              if( nodeCoord[1] < -0.358)
+                  yijk++;
+              if( nodeCoord[1] < -0.380)
+                  yijk++;
+              if( nodeCoord[1] < -0.402)
+                  yijk++;
+              if( nodeCoord[1] < -0.424)
+                  yijk++;
+              if( nodeCoord[1] < -0.446)
+                  yijk++;
+              if( nodeCoord[1] < -0.467)
+                  yijk++;
+              if( nodeCoord[1] < -0.489)
+                  yijk++;
+              if( nodeCoord[1] < -0.511)
+                  yijk++;
+              if( nodeCoord[1] < -0.533)
+                  yijk++;
+              if( nodeCoord[1] < -0.554)
+                  yijk++;
+              if( nodeCoord[1] < -0.576)
+                  yijk++;
+              if( nodeCoord[1] < -0.598)
+                  yijk++;
+              if( nodeCoord[1] < -0.620)
+                  yijk++;
+              if( nodeCoord[1] < -0.641)
+                  yijk++;
+              if( nodeCoord[1] < -0.663)
+                  yijk++;
+              if( nodeCoord[1] < -0.685)
+                  yijk++;
+              if( nodeCoord[1] < -0.707)
+                  yijk++;
+              if( nodeCoord[1] < 0.708)
+                  yijk++;
+
+
+
+              if( nodeCoord[2] < 0.00001)
+                  zijk++;
+              if( nodeCoord[2] < -4.923)
+                  zijk++;
+              if( nodeCoord[2] < -4.846)
+                  zijk++;
+              if( nodeCoord[2] < -4.769)
+                  zijk++;
+              if( nodeCoord[2] < -4.692)
+                  zijk++;
+              if( nodeCoord[2] < -4.615)
+                  zijk++;
+              if( nodeCoord[2] < -4.538)
+                  zijk++;
+              if( nodeCoord[2] < -4.461)
+                  zijk++;
+              if( nodeCoord[2] < -4.384)
+                  zijk++;
+              if( nodeCoord[2] < -4.307)
+                  zijk++;
+              if( nodeCoord[2] < -4.230)
+                  zijk++;
+              if( nodeCoord[2] < -4.153)
+                  zijk++;
+              if( nodeCoord[2] < -4.076)
+                  zijk++;
+              if( nodeCoord[2] < -3.999)
+                  zijk++;
+              if( nodeCoord[2] < -3.923)
+                  zijk++;
+              if( nodeCoord[2] < -3.846)
+                  zijk++;
+              if( nodeCoord[2] < -3.769)
+                  zijk++;
+              if( nodeCoord[2] < -3.692)
+                  zijk++;
+              if( nodeCoord[2] < -3.615)
+                  zijk++;
+              if( nodeCoord[2] < -3.538)
+                  zijk++;
+              if( nodeCoord[2] < -3.461)
+                  zijk++;
+              if( nodeCoord[2] < -3.384)
+                  zijk++;
+              if( nodeCoord[2] < -3.307)
+                  zijk++;
+              if( nodeCoord[2] < -3.230)
+                  zijk++;
+              if( nodeCoord[2] < -3.153)
+                  zijk++;
+              if( nodeCoord[2] < -3.076)
+                  zijk++;
+              if( nodeCoord[2] < -2.999)
+                  zijk++;
+              if( nodeCoord[2] < -2.923)
+                  zijk++;
+              if( nodeCoord[2] < -2.846)
+                  zijk++;
+              if( nodeCoord[2] < -2.769)
+                  zijk++;
+              if( nodeCoord[2] < -2.692)
+                  zijk++;
+              if( nodeCoord[2] < -2.615)
+                  zijk++;
+              if( nodeCoord[2] < -2.538)
+                  zijk++;
+              if( nodeCoord[2] < -2.461)
+                  zijk++;
+              if( nodeCoord[2] < -2.384)
+                  zijk++;
+              if( nodeCoord[2] < -2.307)
+                  zijk++;
+              if( nodeCoord[2] < -2.230)
+                  zijk++;
+              if( nodeCoord[2] < -2.153)
+                  zijk++;
+              if( nodeCoord[2] < -2.076)
+                  zijk++;
+              if( nodeCoord[2] < -1.999)
+                  zijk++;
+              if( nodeCoord[2] < -1.923)
+                  zijk++;
+              if( nodeCoord[2] < -1.846)
+                  zijk++;
+              if( nodeCoord[2] < -1.769)
+                  zijk++;
+              if( nodeCoord[2] < -1.692)
+                  zijk++;
+              if( nodeCoord[2] < -1.615)
+                  zijk++;
+              if( nodeCoord[2] < -1.538)
+                  zijk++;
+              if( nodeCoord[2] < -1.461)
+                  zijk++;
+              if( nodeCoord[2] < -1.384)
+                  zijk++;
+              if( nodeCoord[2] < -1.307)
+                  zijk++;
+              if( nodeCoord[2] < -1.230)
+                  zijk++;
+              if( nodeCoord[2] < -1.153)
+                  zijk++;
+              if( nodeCoord[2] < -1.076)
+                  zijk++;
+              if( nodeCoord[2] < -0.999)
+                  zijk++;
+              if( nodeCoord[2] < -0.923)
+                  zijk++;
+              if( nodeCoord[2] < -0.846)
+                  zijk++;
+              if( nodeCoord[2] < -0.769)
+                  zijk++;
+              if( nodeCoord[2] < -0.692)
+                  zijk++;
+              if( nodeCoord[2] < -0.615)
+                  zijk++;
+              if( nodeCoord[2] < -0.538)
+                  zijk++;
+              if( nodeCoord[2] < -0.461)
+                  zijk++;
+              if( nodeCoord[2] < -0.384)
+                  zijk++;
+              if( nodeCoord[2] < -0.307)
+                  zijk++;
+              if( nodeCoord[2] < -0.230)
+                  zijk++;
+              if( nodeCoord[2] < -0.153)
+                  zijk++;
+              if( nodeCoord[2] < -0.076)
+                  zijk++;
+              if( nodeCoord[2] < -4.999)
+                  zijk++;
+
+            }
+
+            std::cout<<yijk<<" "<<zijk<<std::endl;
+            lidRemap[zijk + lNodesPerDim[2]*yijk] = panzerLID;
+        } else {
+            //std::cout<<bdyCnt<<std::endl;
+            lidRemap[lNodesPerDim[1]*lNodesPerDim[2] + bdyCnt] = panzerLID;
+            bdyCnt++;
+        }
+      }
+      std::cout<<"DONE"<<std::endl;
+      for( int i=0; i<gidStkRemap.size(); i++){
+          lidStkRemap[i] = panzerLID2stkLID[ lidRemap[i] ];
+          gidStkRemap[i] = panzerLID2stkGID[ lidRemap[i] ];
+          gidRemap[i] = panzerLID2panzerGID[ lidRemap[i] ];
+      }
+      std::cout<<"DONE2"<<std::endl;
+      for(typename Array<GO>::size_type idx = 0; idx < interfaceGIDs.size(); ++idx) {
+        interfacesLIDsPanzer[idx] = idx;//lidRemap[idx];
+        interfaceGIDsPanzer[idx] = gidRemap[idx];//lidRemap[idx];
+      }
+      //std::cout << "p=" << myRank << " | lidRemap = " << lidRemap << std::endl;
+      //std::cout<<"donedone"<<std::endl;
+      }// Rank5
+      //std::cout << "p=" << myRank << " | interfaceGIDsPanzer: " << interfaceGIDsPanzer << std::endl;
+      //std::cout << "p=" << myRank << " | interfaceLIDsPanzer: " << interfacesLIDsPanzer << std::endl;
+      //
 
       Array<LO> localLIDstkRemap(nodeGIDs.size()), localPanzerLIDRemap(nodeGIDs.size());
       int countLocal = 0;
@@ -1054,7 +1730,7 @@ int main(int argc, char *argv[]) {
     dofMap->getComm()->barrier();
       // std::cout << "p=" << myRank << " | lidRemap: " << lidRemap() << std::endl;
       // std::cout << "p=" << myRank << " | gidRemap: " << gidRemap() << std::endl;
-      std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
+      //std::cout << "p=" << myRank << " | localPanzerLIDRemap: " << localPanzerLIDRemap() << std::endl;
 
       LO numLocalRegionNodes = 1;
       for(int dimIdx = 0; dimIdx < static_cast<int>(numDimensions); ++dimIdx) {
@@ -1135,7 +1811,9 @@ int main(int argc, char *argv[]) {
 
       Teuchos::Array<typename STS::magnitudeType> norms(1);
       B->norm2(norms);
-      B->scale(one/norms[0]);
+      if( norms[0] > 0 ){
+        B->scale(one/norms[0]);
+      }
 
       comm->barrier();
       tm = Teuchos::null;
@@ -1208,7 +1886,7 @@ int main(int argc, char *argv[]) {
       interfaceLIDsData.resize((numLocalRegionNodes - numLocalCompositeNodes + numMyInterfaceNodes)*numDofsPerNode);
       //interfaceGIDs.resize((numLocalRegionNodes - numLocalCompositeNodes + numMyInterfaceNodes)*numDofsPerNode);
     dofMap->getComm()->barrier();
-    std::cout<<"p = "<<myRank<<" | asdf2"<<std::endl;
+    //std::cout<<"p = "<<myRank<<" | asdf2"<<std::endl;
     dofMap->getComm()->barrier();
 
       Array<LO>  myReceiveLIDs( numInterfaceNodes );
@@ -1249,7 +1927,7 @@ int main(int argc, char *argv[]) {
                   << ") == interfaceNodeIdx (" << interfaceNodeIdx << ")" << std::endl;
       }
     dofMap->getComm()->barrier();
-    std::cout<<"p = "<<myRank<<" | asdf3"<<std::endl;
+    //std::cout<<"p = "<<myRank<<" | asdf3"<<std::endl;
     dofMap->getComm()->barrier();
 
       std::cout << "p=" << myRank << " | compositeToRegionLIDs" << std::endl;
@@ -1259,7 +1937,7 @@ int main(int argc, char *argv[]) {
             compositeToRegionLIDsNoRemap[localPanzerLIDRemap[nodeIdx]*numDofsPerNode + dofIdx];
         }
       }
-      std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
+      //std::cout << "p=" << myRank << " | compositeToRegionLIDs: " << compositeToRegionLIDs << std::endl;
 
       std::cout << "p=" << myRank << " | quasiRegionGIDs" << std::endl;
       for(int nodeIdx = 0; nodeIdx < numLocalRegionNodes; ++nodeIdx) {
@@ -1306,13 +1984,14 @@ int main(int argc, char *argv[]) {
         findInterface(numDimensions, rNodesPerDim, boundaryConditions,
                       interfacesDimensions, interfacesLIDs);
 //interfacesLIDs = myReceiveLIDs;
+interfacesLIDs = interfacesLIDsPanzer;
 
         // std::cout << "p=" << myRank << " | numLocalRegionNodes=" << numLocalRegionNodes
         //           << ", rNodesPerDim: " << rNodesPerDim << std::endl;
-         std::cout << "p=" << myRank << " | boundaryConditions: " << boundaryConditions << std::endl
-                   << "p=" << myRank << " | rNodesPerDim: " << rNodesPerDim << std::endl
-                   << "p=" << myRank << " | interfacesDimensions: " << interfacesDimensions << std::endl
-                   << "p=" << myRank << " | interfacesLIDs: " << interfacesLIDs << std::endl;
+        // std::cout << "p=" << myRank << " | boundaryConditions: " << boundaryConditions << std::endl
+        //           << "p=" << myRank << " | rNodesPerDim: " << rNodesPerDim << std::endl
+        //           << "p=" << myRank << " | interfacesDimensions: " << interfacesDimensions << std::endl
+        //           << "p=" << myRank << " | interfacesLIDs: " << interfacesLIDs << std::endl;
       }
 
       interfaceParams->set<Array<LO> >("interfaces: nodes per dimensions", interfacesDimensions); // nodesPerDimensions);
@@ -1380,7 +2059,7 @@ int main(int argc, char *argv[]) {
       colImport = ImportFactory::Build(dofMap, quasiColMap);
       RCP<Import> coordImporter = ImportFactory::Build(nodeMap, quasiRegCoordMap);
 
-      rowImport->print(std::cout);
+      //rowImport->print(std::cout);
       //coordImporter->print(std::cout);
 
       comm->barrier();
@@ -1390,7 +2069,7 @@ int main(int argc, char *argv[]) {
 
       Array<GO>  interfaceCompositeGIDs, interfaceRegionGIDs;
       ExtractListOfInterfaceRegionGIDs(regionRowMap, interfaceLIDsData, interfaceRegionGIDs);
-      std::cout << "p=" << myRank << " | ExtractListOfInterfaceRegionGIDs: done " << interfaceRegionGIDs << std::endl;
+      //std::cout << "p=" << myRank << " | ExtractListOfInterfaceRegionGIDs: done " << interfaceRegionGIDs << std::endl;
 
       RCP<Xpetra::MultiVector<LO, LO, GO, NO> > regionsPerGIDWithGhosts;
       RCP<Xpetra::MultiVector<GO, LO, GO, NO> > interfaceGIDsMV;
@@ -1400,12 +2079,13 @@ int main(int argc, char *argv[]) {
                                  sendPIDs, interfaceLIDsData,
                                  regionsPerGIDWithGhosts, interfaceGIDsMV);
 
-      // {
-      //   comm->barrier();
-      //   RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-      //   interfaceGIDsMV->describe(*my_out, Teuchos::VERB_EXTREME);
-      //   regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
-      // }
+//       {
+//         comm->barrier();
+//         RCP<Teuchos::FancyOStream> my_out = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+//         interfaceGIDsMV->describe(*my_out, Teuchos::VERB_EXTREME);
+//         regionsPerGIDWithGhosts->describe(*my_out, Teuchos::VERB_EXTREME);
+//         std::cout<<"MV"<<std::endl;
+//       }
 
       if(myRank == 1) { std::cout << "MakeRegionPerGIDWithGhosts: done" << std::endl;}
 
@@ -1416,7 +2096,7 @@ int main(int argc, char *argv[]) {
 
       if(myRank == 1) { std::cout << "SetupMatVec: done" << std::endl;}
 
-      // regionInterfaceImporter->print(std::cout);
+       //regionInterfaceImporter->print(std::cout);
 
       comm->barrier();
       tmLocal = Teuchos::null;
@@ -1457,59 +2137,63 @@ int main(int argc, char *argv[]) {
       //   regionMats->describe(out2, Teuchos::VERB_EXTREME);
       //   comm->barrier();
       // }
-{
-  using TST            = Teuchos::ScalarTraits<SC>;
-  using magnitude_type = typename TST::magnitudeType;
-  using TMT            = Teuchos::ScalarTraits<magnitude_type>;
-  RCP<Vector> Xtest = VectorFactory::Build(X->getMap());
-  RCP<Vector> Btest = VectorFactory::Build(X->getMap());
-
-  // Generate a random composite X vector
-  Xtest->randomize();
-  Btest->randomize();
-
-  // Now build the region X vector
-  RCP<Vector> quasiRegX = Teuchos::null;
-  RCP<Vector> quasiRegB = Teuchos::null;
-  RCP<Vector> regX = Teuchos::null;
-  RCP<Vector> regB = Teuchos::null;
-  compositeToRegional(Xtest, quasiRegX, regX,
-                      regionMats->getMap(), rowImport);
-
-  regB = VectorFactory::Build(regionRowMap, true);
-
-  // Perform composite MatVec
-  A->apply(*Xtest, *Btest, Teuchos::NO_TRANS, TST::one(), TST::zero());
-
-  // Perform regional MatVec
-  ApplyMatVec( one, regionMats, regX, zero, regionInterfaceImporter, regionMatVecLIDs, regB, Teuchos::NO_TRANS, false);
-  //regionMats->apply(*regX, *regB, Teuchos::NO_TRANS, TST::one(), TST::zero(), false, regionInterfaceImporter, regionMatVecLIDs);
-
-  // Bring the result of the region MatVec
-  // to composite format so it can be compared
-  // with the original composite B vector.
-  RCP<Vector> compB = VectorFactory::Build(X->getMap());
-  regionalToComposite(regB, compB, rowImport);
-
-  // Extract the data from B and compB to compare it
-  ArrayRCP<const SC> dataB     = Btest->getData(0);
-  ArrayRCP<const SC> dataCompB = compB->getData(0);
-  for(size_t idx = 0; idx < Btest->getLocalLength(); ++idx) {
-      if( abs(TST::magnitude(dataB[idx]) - TST::magnitude(dataCompB[idx])) > 1e-6 ){
-          std::cout<<"p="<<myRank<<" | Index: "<< idx << " vals: "<< TST::magnitude(dataB[idx]) << " versus " << TST::magnitude(dataCompB[idx]) << std::endl;
-      }
-  }
-        std::cout<<"NORM        A: "<< Btest->norm1() <<std::endl;
-        std::cout<<"NORM region A: "<< regB->norm1() <<std::endl;
-        std::cout<<"NORM   comp A: "<< compB->norm1() <<std::endl;
-}
+//{
+//  using TST            = Teuchos::ScalarTraits<SC>;
+//  using magnitude_type = typename TST::magnitudeType;
+//  using TMT            = Teuchos::ScalarTraits<magnitude_type>;
+//  RCP<Vector> Xtest = VectorFactory::Build(X->getMap());
+//  RCP<Vector> Btest = VectorFactory::Build(X->getMap());
+//
+//  // Generate a random composite X vector
+//  Xtest->randomize();
+//  Btest->randomize();
+//
+//  // Now build the region X vector
+//  RCP<Vector> quasiRegX = Teuchos::null;
+//  RCP<Vector> quasiRegB = Teuchos::null;
+//  RCP<Vector> regX = Teuchos::null;
+//  RCP<Vector> regB = Teuchos::null;
+//  compositeToRegional(Xtest, quasiRegX, regX,
+//                      regionMats->getMap(), rowImport);
+//
+//  regB = VectorFactory::Build(regionRowMap, true);
+//
+//  // Perform composite MatVec
+//  A->apply(*Xtest, *Btest, Teuchos::NO_TRANS, TST::one(), TST::zero());
+//
+//  // Perform regional MatVec
+//  ApplyMatVec( one, regionMats, regX, zero, regionInterfaceImporter, regionMatVecLIDs, regB, Teuchos::NO_TRANS, true);
+//      RCP<Level> levelS = Hierarchy->GetLevel(0);
+//      RCP<Vector> regInterfaceScalings = level->Get<RCP<Vector> >("regInterfaceScalings");
+//  scaleInterfaceDOFs(regB, regInterfaceScalings, true);
+//  //regionMats->apply(*regX, *regB, Teuchos::NO_TRANS, TST::one(), TST::zero(), false, regionInterfaceImporter, regionMatVecLIDs);
+//
+//  // Bring the result of the region MatVec
+//  // to composite format so it can be compared
+//  // with the original composite B vector.
+//  RCP<Vector> compB = VectorFactory::Build(X->getMap());
+//  regionalToComposite(regB, compB, rowImport);
+//
+//  // Extract the data from B and compB to compare it
+//  ArrayRCP<const SC> dataB     = Btest->getData(0);
+//  ArrayRCP<const SC> dataCompB = compB->getData(0);
+//  for(size_t idx = 0; idx < Btest->getLocalLength(); ++idx) {
+//      if( abs(TST::magnitude(dataB[idx]) - TST::magnitude(dataCompB[idx])) > 1e-6 ){
+//          std::cout<<"p="<<myRank<<" | Index: "<< idx << " vals: "<< TST::magnitude(dataB[idx]) << " versus " << TST::magnitude(dataCompB[idx]) << std::endl;
+//      }
+//  }
+//        std::cout<<"NORM        A: "<< Btest->norm1() <<std::endl;
+//        std::cout<<"NORM region A: "<< regB->norm1() <<std::endl;
+//        std::cout<<"NORM   comp A: "<< compB->norm1() <<std::endl;
+//}
 
 
       //Xpetra::IO<Scalar, LocalOrdinal, GlobalOrdinal, Node>::Write("fineCmpA",* A);
       //Xpetra::IO<Scalar, LocalOrdinal, GlobalOrdinal, Node>::Write("fineRegA",* regionMats);
 
       // We don't need the composite operator on the fine level anymore. Free it!
-      A = Teuchos::null;
+      if (!A.is_null()) Xpetra::IO<Scalar, LocalOrdinal, GlobalOrdinal, Node>::Write("A_00.m", *A);
+//      A = Teuchos::null;
 
       comm->barrier();
       tmLocal = Teuchos::null;
@@ -1599,7 +2283,7 @@ int main(int argc, char *argv[]) {
         level->Set<RCP<Xpetra::MultiVector<LocalOrdinal, LocalOrdinal, GlobalOrdinal, Node> > >("regionsPerGIDWithGhosts", regionsPerGIDWithGhosts);
         level->Set<Teuchos::ArrayRCP<LocalOrdinal> >("regionMatVecLIDs", regionMatVecLIDs);
         level->Set<RCP<Xpetra::Import<LocalOrdinal, GlobalOrdinal, Node> > >("regionInterfaceImporter", regionInterfaceImporter);
-        level->print( std::cout, MueLu::Extreme );
+        //level->print( std::cout, MueLu::Extreme );
 
         level->Set<Teuchos::Array<LO>>( "lidRemap",  lidRemap);
         level->Set<Teuchos::Array<LO>>( "localLIDsRemap",  localPanzerLIDRemap);
@@ -1624,6 +2308,56 @@ int main(int argc, char *argv[]) {
                             /*debug flags, remove later! */ true);
 
       // hierarchyData->print();
+{
+  using TST            = Teuchos::ScalarTraits<SC>;
+  using magnitude_type = typename TST::magnitudeType;
+  using TMT            = Teuchos::ScalarTraits<magnitude_type>;
+  RCP<Vector> Xtest = VectorFactory::Build(X->getMap());
+  RCP<Vector> Btest = VectorFactory::Build(X->getMap());
+
+  // Generate a random composite X vector
+  Xtest->randomize();
+  Btest->randomize();
+
+  // Now build the region X vector
+  RCP<Vector> quasiRegX = Teuchos::null;
+  RCP<Vector> quasiRegB = Teuchos::null;
+  RCP<Vector> regX = Teuchos::null;
+  RCP<Vector> regB = Teuchos::null;
+  compositeToRegional(Xtest, quasiRegX, regX,
+                      regionMats->getMap(), rowImport);
+
+  regB = VectorFactory::Build(regionRowMap, true);
+
+  // Perform composite MatVec
+  A->apply(*Xtest, *Btest, Teuchos::NO_TRANS, TST::one(), TST::zero());
+
+  // Perform regional MatVec
+  ApplyMatVec( one, regionMats, regX, zero, regionInterfaceImporter, regionMatVecLIDs, regB, Teuchos::NO_TRANS, true);
+  RCP<MueLu::Level> levelS = regHierarchy->GetLevel(0);
+  RCP<Vector> regInterfaceScalings = levelS->Get<RCP<Vector> >("regInterfaceScalings");
+  scaleInterfaceDOFs(regB, regInterfaceScalings, true);
+  //regionMats->apply(*regX, *regB, Teuchos::NO_TRANS, TST::one(), TST::zero(), false, regionInterfaceImporter, regionMatVecLIDs);
+
+  // Bring the result of the region MatVec
+  // to composite format so it can be compared
+  // with the original composite B vector.
+  RCP<Vector> compB = VectorFactory::Build(X->getMap());
+  regionalToComposite(regB, compB, rowImport);
+
+  // Extract the data from B and compB to compare it
+  ArrayRCP<const SC> dataB     = Btest->getData(0);
+  ArrayRCP<const SC> dataCompB = compB->getData(0);
+  for(size_t idx = 0; idx < Btest->getLocalLength(); ++idx) {
+      if( abs(TST::magnitude(dataB[idx]) - TST::magnitude(dataCompB[idx])) > 1e-6 ){
+          std::cout<<"p="<<myRank<<" | Index: "<< idx << " vals: "<< TST::magnitude(dataB[idx]) << " versus " << TST::magnitude(dataCompB[idx]) << std::endl;
+      }
+  }
+        std::cout<<"NORM        A: "<< Btest->norm1() <<std::endl;
+        std::cout<<"NORM region A: "<< regB->norm1() <<std::endl;
+        std::cout<<"NORM   comp A: "<< compB->norm1() <<std::endl;
+
+}
 
 
 
