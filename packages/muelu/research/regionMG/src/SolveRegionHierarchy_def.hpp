@@ -310,6 +310,169 @@ void vCycle(const int l, ///< ID of current level
 } // vCycle
 
 template <class Scalar, class LocalOrdinal, class GlobalOrdinal, class Node>
+void CGsolveRegionProblem(const double tol, const bool scaleResidualHist, const int maxIts,
+                          const std::string cycleType, const std::string convergenceLog,
+                          RCP<Teuchos::ParameterList>& coarseSolverData,
+                          Array<RCP<Teuchos::ParameterList> >& smootherParams,
+                          RCP<Teuchos::ParameterList> hierarchyData,
+                          RCP<MueLu::Hierarchy<Scalar, LocalOrdinal, GlobalOrdinal, Node> > & regHierarchy,
+                          RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& A,
+                          RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& X,
+                          RCP<Xpetra::Vector<Scalar, LocalOrdinal, GlobalOrdinal, Node> >& B) {
+
+  using LO = LocalOrdinal;
+  using GO = GlobalOrdinal;
+  using NO = Node;
+  using SC = Scalar;
+
+  using Map    = Xpetra::Map<LO,GO,NO>;
+  using Import = Xpetra::Import<LO,GO,NO>;
+  using Matrix = Xpetra::Matrix<SC,LO,GO,NO>;
+  using Vector = Xpetra::Vector<SC,LO,GO,NO>;
+  using VectorFactory = Xpetra::VectorFactory<SC,LO,GO,NO>;
+
+  using Level = MueLu::Level;
+
+  using STS = Teuchos::ScalarTraits<Scalar>;
+  using magnitude_type = typename STS::magnitudeType;
+  const Scalar zero = STS::zero();
+  const Scalar one  = STS::one();
+
+  // we start by extracting some basic data from the hierarchy
+  const int numLevels = regHierarchy->GetNumLevels();
+  RCP<Level> level0 = regHierarchy->GetLevel(0);
+  RCP<Matrix> regMat  = level0->Get<RCP<Matrix> >("A");
+  RCP<const Map> revisedRowMap  = regMat->getRowMap();
+  RCP<Import> rowImport = level0->Get<RCP<Import> >("rowImport");
+  RCP<const Map> dofMap = X->getMap();
+  const int myRank = dofMap->getComm()->getRank();
+
+  // Instead of checking each time for rank, create a rank 0 stream
+  RCP<Teuchos::FancyOStream> fancy = Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
+  Teuchos::FancyOStream& out = *fancy;
+  out.setOutputToRootOnly(0);
+
+  TEUCHOS_TEST_FOR_EXCEPT_MSG(!(numLevels>0), "We require numLevel > 0. Probably, numLevel has not been set, yet.");
+
+  // Prepare output of residual norm to file
+  RCP<std::ofstream> log;
+  if (myRank == 0)
+    {
+      log = rcp(new std::ofstream(convergenceLog.c_str()));
+      (*log) << "# num procs = " << dofMap->getComm()->getSize() << "\n"
+             << "# iteration | res-norm (scaled=" << scaleResidualHist << ")\n"
+             << "#\n";
+      *log << std::setprecision(16) << std::scientific;
+    }
+
+  // Print type of residual norm to the screen
+  if (scaleResidualHist)
+    out << "Using scaled residual norm." << std::endl;
+  else
+    out << "Using unscaled residual norm." << std::endl;
+
+  // We first use the non-level container variables to setup the fine grid problem.
+  // This is ok since the initial setup just mimics the application and the outer
+  // Krylov method.
+  //
+  // We switch to using the level container variables as soon as we enter the
+  // recursive part of the algorithm.
+  //
+
+  // transform composite X and B vectors to regional layout
+  RCP<Vector> quasiRegX;
+  RCP<Vector> regX;
+  compositeToRegional(X, quasiRegX, regX,
+                      revisedRowMap, rowImport);
+
+  RCP<Vector> quasiRegB;
+  RCP<Vector> regB;
+  compositeToRegional(B, quasiRegB, regB,
+                      revisedRowMap, rowImport);
+
+
+  // Composite residual vector
+  RCP<Vector> Res;
+  A->apply(*X, *Res, Teuchos::NO_TRANS, -one, zero);
+  Res->update(one, *B, -one);
+  const magnitude_type normResIni = Res->norm2();
+  magnitude_type normRes;
+
+  // Apply preconditioner
+  RCP<Level> level = regHierarchy->GetLevel(0);
+  RCP<Vector> regInterfaceScalings = level->Get<RCP<Vector> >("regInterfaceScalings");
+  RCP<Vector> regCorrect = VectorFactory::Build(revisedRowMap, true);
+  RCP<Vector> regZ, quasiRegZ;
+  RCP<Vector> Z = VectorFactory::Build(dofMap, true);
+  compositeToRegional(Res, quasiRegZ, regZ,
+                      revisedRowMap, rowImport);
+  bool zeroInitGuess = true;
+  vCycle(0, numLevels, cycleType, regHierarchy,
+         regCorrect, regZ,
+         smootherParams, zeroInitGuess, coarseSolverData, hierarchyData);
+  regCorrect->update(one, *regX, one);
+  computeResidual(regZ, regCorrect, regB, regMat, *smootherParams[0]);
+  scaleInterfaceDOFs(regZ, regInterfaceScalings, true);
+  regionalToComposite(regZ, Z, rowImport);
+
+  RCP<Vector> P, AP;
+  *P = *Z;
+
+  // CG iterations
+  const int old_precision = std::cout.precision();
+  std::cout << std::setprecision(8) << std::scientific;
+  int iteration = 0;
+  Scalar alpha = zero;
+  Scalar beta  = zero;
+  for (iteration = 0; iteration < maxIts; ++iteration) {
+    alpha = Res->dot(*Z);
+    beta = 1 / alpha;
+    A->apply(*P, *AP, Teuchos::NO_TRANS, one, zero);
+    alpha = alpha / P->dot(*AP);
+    X->update(alpha, *P, one);
+    Res->update(-alpha, *AP, one);
+    normRes = Res->norm2();
+    // check for convergence
+    {
+      if (scaleResidualHist)
+        normRes /= normResIni;
+
+      // Output current residual norm to screen (on proc 0 only)
+      out << iteration << "\t" << normRes << std::endl;
+      if (myRank == 0)
+        (*log) << iteration << "\t" << normRes << "\n";
+
+      if (normRes < tol)
+        break;
+    }
+
+    compositeToRegional(Res, quasiRegZ, regZ,
+                        revisedRowMap, rowImport);
+    regCorrect->putScalar(zero);
+    vCycle(0, numLevels, cycleType, regHierarchy,
+           regCorrect, regZ,
+           smootherParams, zeroInitGuess, coarseSolverData, hierarchyData);
+    regCorrect->update(one, *regX, one);
+    computeResidual(regZ, regCorrect, regB, regMat, *smootherParams[0]);
+    scaleInterfaceDOFs(regZ, regInterfaceScalings, true);
+    regionalToComposite(regZ, Z, rowImport);
+
+    beta = Res->dot(*Z) / beta;
+    P->update(one, *Z, beta);
+  }
+  out << "Number of iterations performed for this solve: " << iteration << std::endl;
+
+  // Send solution regX back to X.
+  RCP<Vector> compB = VectorFactory::Build(X->getMap());
+  RCP<Vector> regInterfaceScalings0 = level0->Get<RCP<Vector> >("regInterfaceScalings");
+  scaleInterfaceDOFs(regX, regInterfaceScalings0, true);
+  regionalToComposite(regX, X, rowImport);
+
+  std::cout << std::setprecision(old_precision);
+  std::cout.unsetf(std::ios::fixed | std::ios::scientific);
+}
+
+template <class Scalar, class LocalOrdinal, class GlobalOrdinal, class Node>
 void solveRegionProblem(const double tol, const bool scaleResidualHist, const int maxIts,
                         const std::string cycleType, const std::string convergenceLog,
                         RCP<Teuchos::ParameterList>& coarseSolverData,
@@ -408,8 +571,7 @@ void solveRegionProblem(const double tol, const bool scaleResidualHist, const in
 
   Teuchos::RCP<Vector> regCorrect;
   regCorrect = VectorFactory::Build(revisedRowMap, true);
-  for (cycle = 0; cycle < maxIts; ++cycle)
-    {
+  for (cycle = 0; cycle < maxIts; ++cycle) {
       const Scalar SC_ZERO = Teuchos::ScalarTraits<SC>::zero();
       regCorrect->putScalar(SC_ZERO);
       // Get Stuff out of Hierarchy
@@ -452,7 +614,7 @@ void solveRegionProblem(const double tol, const bool scaleResidualHist, const in
              smootherParams, zeroInitGuess, coarseSolverData, hierarchyData);
 
       regX->update(one, *regCorrect, one);
-    }
+  }
   out << "Number of iterations performed for this solve: " << cycle << std::endl;
 
   //std::cout<<"p= "<<dofMap()->getComm()->getRank()<<" | regX: "<<regX->getDataNonConst(0)()<<std::endl;

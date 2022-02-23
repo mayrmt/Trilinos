@@ -201,17 +201,20 @@ int main(int argc, char *argv[]) {
     int mesh_refinements              = 0;                   clp.setOption("mesh-refinements",      &mesh_refinements,        "Uniform mesh refinements");
     bool delete_parent_elements       = false;               clp.setOption("delete-parent-elements", "keep-parent-elements", &delete_parent_elements,"Save the parent elements in the perceptMesh");
 
-    // Multigrid options
+    // Solver options
+    std::string solverType            = "Richardson";        clp.setOption("solverType",            &solverType,            "iterative solver used: (Richardson | CG)");
     std::string convergenceLog        = "residual_norm.txt"; clp.setOption("convergence-log",       &convergenceLog,        "file in which the convergence history of the linear solver is stored");
     int         maxIts                = 200;                 clp.setOption("its",                   &maxIts,                "maximum number of solver iterations");
+    double      tol                   = 1e-12;               clp.setOption("tol",                   &tol,                   "solver convergence tolerance");
+    bool        scaleResidualHist     = true;                clp.setOption("scale", "noscale",      &scaleResidualHist,     "scaled Krylov residual history");
+    bool        serialRandom          = false;               clp.setOption("use-serial-random", "no-use-serial-random", &serialRandom, "generate the random vector serially and then broadcast it");
+
+    // Multigrid options
     std::string smootherType          = "Jacobi";            clp.setOption("smootherType",          &smootherType,          "smoother to be used: (None | Jacobi | Gauss | Chebyshev)");
     int         smootherIts           = 2;                   clp.setOption("smootherIts",           &smootherIts,           "number of smoother iterations");
     double      smootherDamp          = 0.67;                clp.setOption("smootherDamp",          &smootherDamp,          "damping parameter for the level smoother");
     double      smootherChebyEigRatio = 2.0;                 clp.setOption("smootherChebyEigRatio", &smootherChebyEigRatio, "eigenvalue ratio max/min used to approximate the smallest eigenvalue for Chebyshev relaxation");
     double      smootherChebyBoostFactor = 1.1;              clp.setOption("smootherChebyBoostFactor", &smootherChebyBoostFactor, "boost factor for Chebyshev smoother");
-    double      tol                   = 1e-12;               clp.setOption("tol",                   &tol,                   "solver convergence tolerance");
-    bool        scaleResidualHist     = true;                clp.setOption("scale", "noscale",      &scaleResidualHist,     "scaled Krylov residual history");
-    bool        serialRandom          = false;               clp.setOption("use-serial-random", "no-use-serial-random", &serialRandom, "generate the random vector serially and then broadcast it");
     bool        keepCoarseCoords      = false;               clp.setOption("keep-coarse-coords", "no-keep-coarse-coords", &keepCoarseCoords, "keep coordinates on coarsest level of region hierarchy");
     bool        coarseSolverRebalance = false;               clp.setOption("rebalance-coarse", "no-rebalance-coarse", &coarseSolverRebalance, "rebalance before AMG coarse grid solve");
     int         rebalanceNumPartitions = -1;                 clp.setOption("numPartitions",         &rebalanceNumPartitions, "number of partitions for rebalancing the coarse grid AMG solve");
@@ -2385,12 +2388,19 @@ interfacesLIDs = interfacesLIDsPanzer;
       //   regionMatVecLIDsPerLevel[levelIdx]->describe(out2, Teuchos::VERB_EXTREME);
       // }
 
-      tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 5 - Solve with V-cycle")));
-      if(myRank == 1) { std::cout << "Driver: 5 - Solve with V-cycle" << std::endl;}
+      tm = rcp(new TimeMonitor(*TimeMonitor::getNewTimer("Driver: 5 - Solve with "+solverType)));
+      if(myRank == 1) { std::cout << "Driver: 5 - Solve with " << solverType << std::endl;}
+      if(solverType == "Richardson") {
 
-      solveRegionProblem(tol, scaleResidualHist, maxIts, cycleType, convergenceLog,
-                         coarseSolverData, smootherParams, hierarchyData,
-                         regHierarchy, X, B);
+        solveRegionProblem(tol, scaleResidualHist, maxIts, cycleType, convergenceLog,
+                           coarseSolverData, smootherParams, hierarchyData,
+                           regHierarchy, X, B);
+      } else if(solverType == "CG") {
+
+        CGsolveRegionProblem(tol, scaleResidualHist, maxIts, cycleType, convergenceLog,
+                             coarseSolverData, smootherParams, hierarchyData,
+                             regHierarchy, A, X, B);
+      }
 
       comm->barrier();
       tm = Teuchos::null;
