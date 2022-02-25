@@ -497,7 +497,7 @@ void solveRegionProblem(const double tol, const bool scaleResidualHist, const in
 
   using STS = Teuchos::ScalarTraits<Scalar>;
   using magnitude_type = typename STS::magnitudeType;
-  // const Scalar zero = STS::zero();
+  const Scalar zero = STS::zero();
   const Scalar one  = STS::one();
 
   // we start by extracting some basic data from the hierarchy
@@ -572,8 +572,7 @@ void solveRegionProblem(const double tol, const bool scaleResidualHist, const in
   Teuchos::RCP<Vector> regCorrect;
   regCorrect = VectorFactory::Build(revisedRowMap, true);
   for (cycle = 0; cycle < maxIts; ++cycle) {
-      const Scalar SC_ZERO = Teuchos::ScalarTraits<SC>::zero();
-      regCorrect->putScalar(SC_ZERO);
+      regCorrect->putScalar(zero);
       // Get Stuff out of Hierarchy
       RCP<Level> level = regHierarchy->GetLevel(0);
       RCP<Vector> regInterfaceScalings = level->Get<RCP<Vector> >("regInterfaceScalings");
