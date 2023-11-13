@@ -1096,7 +1096,7 @@ namespace FROSch {
             this->coarseExtractLocalSubdomainMatrix_Symbolic_Done_ = true;
         }
     }
-    
+
 }
 
 #endif

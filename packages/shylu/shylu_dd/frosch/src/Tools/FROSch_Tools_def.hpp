@@ -82,7 +82,7 @@ namespace FROSch {
     template <typename LO,typename GO>
     int MergeList(Array<RCP<OverlappingData<LO,GO> > > &odList)
     {
-        int numPackages = 0;
+        size_t numPackages = 0;
         std::sort(odList.begin(),
                   odList.end(),
                   [] (const RCP<OverlappingData<LO,GO> >& lhs, const RCP<OverlappingData<LO,GO> >& rhs) {
@@ -958,15 +958,15 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START(assembleMapsTime,"AssembleMaps");
         FROSCH_ASSERT(mapVector.size()>0,"Length of mapVector is == 0!");
         LO i = 0;
-        LO localstart = 0;
-        LO sizetmp = 0;
-        LO size = 0;
+        size_t localstart = 0;
+        size_t sizetmp = 0;
+        size_t size = 0;
         GO globalstart = 0;
 
         partMappings = ArrayRCP<ArrayRCP<LO> >(mapVector.size());
 
         ArrayRCP<GO> assembledMapTmp(0);
-        for (unsigned j=0; j<mapVector.size(); j++) {
+        for (std::size_t j=0; j<mapVector.size(); j++) {
             sizetmp = mapVector[j]->getLocalNumElements();
             partMappings[j] = ArrayRCP<LO>(sizetmp);
 
@@ -1057,11 +1057,11 @@ namespace FROSch {
         for (unsigned i=0; i<numberOfBlocks; i++) {
             FROSCH_ASSERT(!dofsMaps[i].is_null(),"FROSch: dofsMaps[i].is_null()");
             FROSCH_ASSERT(dofsMaps[i].size()==dofsPerNode[i],"FROSch: dofsMaps[i].size()!=dofsPerNode[i]");
-            unsigned numMyElements = dofsMaps[i][0]->getLocalNumElements();
+            const size_t numMyElements = dofsMaps[i][0]->getLocalNumElements();
             for (unsigned j=1; j<dofsPerNode[i]; j++) {
-                FROSCH_ASSERT(dofsMaps[i][j]->getLocalNumElements()==(unsigned) numMyElements,"FROSch: dofsMaps[i][j]->getLocalNumElements()==numMyElements");
+                FROSCH_ASSERT(dofsMaps[i][j]->getLocalNumElements()==numMyElements,"FROSch: dofsMaps[i][j]->getLocalNumElements()==numMyElements");
             }
-            for (unsigned j=0; j<numMyElements; j++) {
+            for (LO j=0; j<numMyElements; j++) {
                 for (unsigned k=0; k<dofsPerNode[i]; k++) {
                     mapVector.push_back(dofsMaps[i][k]->getGlobalElement(j));
                 }
@@ -1083,11 +1083,11 @@ namespace FROSch {
         Array<GO> elementList(mapVector[0]->getLocalElementList());
         GO tmpOffset = 0;
         for (unsigned i=1; i<mapVector.size(); i++) {
-            LO nodeNumElements = mapVector[i]->getLocalNumElements();
+            const size_t nodeNumElements = mapVector[i]->getLocalNumElements();
             tmpOffset += mapVector[i-1]->getMaxAllGlobalIndex()+1;
 
             Array<GO> subElementList(nodeNumElements);
-            for (LO j=0; j<nodeNumElements; j++) {
+            for (size_t j=0; j<nodeNumElements; j++) {
                 subElementList.at(j) = mapVector[i]->getGlobalElement(j)+tmpOffset;
             }
 
@@ -1112,7 +1112,7 @@ namespace FROSch {
                         ArrayRCP<ArrayRCP<RCP<const Map<LO,GO,NO> > > >&dofMapsVec)
     {
         FROSCH_DETAILTIMER_START(buildDofMapsVecTime,"BuildDofMapsVec");
-        unsigned numberBlocks = mapVec.size();
+        size_t numberBlocks = mapVec.size();
         nodesMapVec = ArrayRCP<RCP<const Map<LO,GO,NO> > > (numberBlocks);
         dofMapsVec = ArrayRCP<ArrayRCP<RCP<const Map<LO,GO,NO> > > > (numberBlocks);
 
@@ -1145,7 +1145,7 @@ namespace FROSch {
             dofs[j] = ArrayRCP<GO>(map->getLocalNumElements()/dofsPerNode);
         }
         if (dofOrdering==0) {
-            for (unsigned i=0; i<nodes.size(); i++) {
+            for (size_t i=0; i<nodes.size(); i++) {
                 nodes[i] = map->getGlobalElement(dofsPerNode*i)/dofsPerNode;
                 for (unsigned j=0; j<dofsPerNode; j++) {
                     dofs[j][i] = dofsPerNode*nodes[i]+j+offset;
@@ -1153,8 +1153,8 @@ namespace FROSch {
             }
         } else if (dofOrdering == 1) {
             GO numGlobalIDs = map->getMaxAllGlobalIndex()+1;
-            for (unsigned i=0; i<nodes.size(); i++) {
-                nodes[i] = map->getGlobalElement(i);
+            for (size_t i=0; i<nodes.size(); i++) {
+                nodes[i] = map->getGlobalElement(Teuchos::as<LO>(i));
                 for (unsigned j=0; j<dofsPerNode; j++) {
                     dofs[j][i] = nodes[i]+j*numGlobalIDs/dofsPerNode+offset;
                 }
@@ -1186,17 +1186,17 @@ namespace FROSch {
             FROSCH_ASSERT(dofMaps[i]->getGlobalNumElements()%dofsPerNode==0 && dofMaps[i]->getLocalNumElements()%dofsPerNode==0,"ERROR: The number of dofsPerNode does not divide the number of global dofs in the dofMaps!");
         }
 
-        unsigned numNodes = dofMaps[0]->getLocalNumElements();
+        size_t numNodes = dofMaps[0]->getLocalNumElements();
         Array<GO> globalIDs(numNodes);
         if (dofOrdering==0) {
             for (unsigned i=0; i<dofsPerNode; i++) {
-                for (unsigned j=0; j<numNodes; j++) {
+                for (size_t j=0; j<numNodes; j++) {
                     globalIDs[dofsPerNode*j+i] = dofMaps[i]->getGlobalElement(j);
                 }
             }
         } else if (dofOrdering == 1) {
             for (unsigned i=0; i<dofsPerNode; i++) {
-                for (unsigned j=0; j<numNodes; j++) {
+                for (size_t j=0; j<numNodes; j++) {
                     globalIDs[j+i*numNodes] = dofMaps[i]->getGlobalElement(j);
                 }
             }
@@ -1217,17 +1217,17 @@ namespace FROSch {
         FROSCH_ASSERT(dofOrdering==0 || dofOrdering==1,"ERROR: Specify a valid DofOrdering.");
         FROSCH_ASSERT(!nodesMap.is_null(),"nodesMap.is_null().");
 
-        unsigned numNodes = nodesMap->getLocalNumElements();
+        size_t numNodes = nodesMap->getLocalNumElements();
         Array<GO> globalIDs(dofsPerNode*numNodes);
         if (dofOrdering==0) {
             for (unsigned i=0; i<dofsPerNode; i++) {
-                for (unsigned j=0; j<numNodes; j++) {
+                for (size_t j=0; j<numNodes; j++) {
                     globalIDs[dofsPerNode*j+i] = dofsPerNode*nodesMap->getGlobalElement(j)+i;
                 }
             }
         } else if (dofOrdering == 1) {
             for (unsigned i=0; i<dofsPerNode; i++) {
-                for (unsigned j=0; j<numNodes; j++) {
+                for (size_t j=0; j<numNodes; j++) {
                     globalIDs[j+i*numNodes] = nodesMap->getGlobalElement(j)+i*nodesMap->getGlobalNumElements();
                 }
             }
@@ -1339,9 +1339,9 @@ namespace FROSch {
 
         Array<Array<GO> > indicesSubMaps(maxSubGIDVec.size());
         ArrayView<const GO> nodeElementList = fullMap->getLocalElementList();
-        for (unsigned i = 0; i<fullMap->getLocalNumElements(); i++) {
+        for (size_t i = 0; i<fullMap->getLocalNumElements(); i++) {
             LO subMapNumber = -1;
-            for (unsigned j = (maxSubGIDVec.size()); j > 0; j--) {
+            for (size_t j = (maxSubGIDVec.size()); j > 0; j--) {
                 if (nodeElementList[i] <= maxSubGIDVec[j-1]) {
                     subMapNumber = j-1;
                 }
@@ -1351,7 +1351,7 @@ namespace FROSch {
         }
 
         const GO INVALID = Teuchos::OrdinalTraits<GO>::invalid();
-        for (unsigned j = 0 ; j < maxSubGIDVec.size(); j++) {
+        for (size_t j = 0 ; j < maxSubGIDVec.size(); j++) {
             subMaps[j] = MapFactory<LO,GO,NO>::Build(fullMap->lib(),INVALID,indicesSubMaps[j](),0,fullMap->getComm());
         }
         return subMaps;
@@ -1368,7 +1368,7 @@ namespace FROSch {
 
         ArrayRCP<GO> oneEntryOnlyRows(repeatedMatrix->getLocalNumRows());
         LO tmp = 0;
-        LO nnz;
+        size_t nnz;
         GO row;
         for (unsigned i=0; i<repeatedMatrix->getLocalNumRows(); i++) {
             row = repeatedMap->getGlobalElement(i);
@@ -1543,7 +1543,7 @@ namespace FROSch {
         if (nullSpaceType == NullSpaceType::Laplace) {
             nullSpaceBasis = MultiVectorFactory<SC,LO,GO,NO>::Build(repeatedMap,dofsPerNode);
             for (unsigned i=0; i<dofsPerNode; i++) {
-                for (unsigned j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
+                for (size_t j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
                     nullSpaceBasis->getDataNonConst(i)[repeatedMap->getLocalElement(dofsMaps[i]->getGlobalElement(j))] = ScalarTraits<SC>::one();
                 }
             }
@@ -1556,12 +1556,12 @@ namespace FROSch {
                 nullSpaceBasis = MultiVectorFactory<SC,LO,GO,NO>::Build(repeatedMap,3);
                 // translations
                 for (unsigned i=0; i<2; i++) {
-                    for (unsigned j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
+                    for (size_t j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
                         nullSpaceBasis->getDataNonConst(i)[repeatedMap->getLocalElement(dofsMaps[i]->getGlobalElement(j))] = ScalarTraits<SC>::one();
                     }
                 }
                 // rotation
-                for (unsigned j=0; j<dofsMaps[0]->getLocalNumElements(); j++) {
+                for (size_t j=0; j<dofsMaps[0]->getLocalNumElements(); j++) {
                     nullSpaceBasis->getDataNonConst(2)[repeatedMap->getLocalElement(dofsMaps[0]->getGlobalElement(j))] = -nodeList->getData(1)[j];
                     nullSpaceBasis->getDataNonConst(2)[repeatedMap->getLocalElement(dofsMaps[1]->getGlobalElement(j))] = nodeList->getData(0)[j];
                 }
@@ -1569,12 +1569,12 @@ namespace FROSch {
                 nullSpaceBasis = MultiVectorFactory<SC,LO,GO,NO>::Build(repeatedMap,6);
                 // translations
                 for (unsigned i=0; i<3; i++) {
-                    for (unsigned j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
+                    for (size_t j=0; j<dofsMaps[i]->getLocalNumElements(); j++) {
                         nullSpaceBasis->getDataNonConst(i)[repeatedMap->getLocalElement(dofsMaps[i]->getGlobalElement(j))] = ScalarTraits<SC>::one();
                     }
                 }
                 // rotations
-                for (unsigned j=0; j<dofsMaps[0]->getLocalNumElements(); j++) {
+                for (size_t j=0; j<dofsMaps[0]->getLocalNumElements(); j++) {
                     nullSpaceBasis->getDataNonConst(3)[repeatedMap->getLocalElement(dofsMaps[0]->getGlobalElement(j))] = nodeList->getData(1)[j];
                     nullSpaceBasis->getDataNonConst(3)[repeatedMap->getLocalElement(dofsMaps[1]->getGlobalElement(j))] = -nodeList->getData(0)[j];
                     nullSpaceBasis->getDataNonConst(3)[repeatedMap->getLocalElement(dofsMaps[2]->getGlobalElement(j))] = ScalarTraits<SC>::zero();

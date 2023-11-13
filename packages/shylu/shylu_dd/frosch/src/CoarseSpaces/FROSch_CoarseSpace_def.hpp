@@ -78,7 +78,7 @@ namespace FROSch {
         UnassembledBasesMapsUnique_.push_back(subspaceBasisMapUnique);
         UnassembledSubspaceBases_.push_back(subspaceBasis);
         Offsets_.push_back(offset);
-        LocalSubspacesSizes_.push_back(subspaceBasisMap->getLocalNumElements());
+        LocalSubspacesSizes_.push_back(Teuchos::as<UN>(subspaceBasisMap->getLocalNumElements()));
 
         return 0;
     }
@@ -141,8 +141,8 @@ namespace FROSch {
                     for (UN i=0; i<UnassembledSubspaceBases_.size(); i++) {
                         if (!UnassembledSubspaceBases_[i].is_null()) {
                             const UN Offset_i = Offsets_[i];
-                            const UN NumVectors_i = UnassembledSubspaceBases_[i]->getNumVectors();
-                            const UN LocalLength_i = UnassembledSubspaceBases_[i]->getLocalLength();
+                            const UN NumVectors_i = Teuchos::as<UN>(UnassembledSubspaceBases_[i]->getNumVectors());
+                            const UN LocalLength_i = Teuchos::as<UN>(UnassembledSubspaceBases_[i]->getLocalLength());
 
                             FROSCH_ASSERT(NumVectors_i+itmp <= AssembledBasis_->getNumVectors(),"FROSch::CoarseSpace: NumVectors_i+itmp <= AssembledBasis_->getNumVectors()");
                             FROSCH_ASSERT(LocalLength_i+Offsets_[i] <= AssembledBasis_->getLocalLength(),"FROSch::CoarseSpace: LocalLength_i+Offsets_[i] <= AssembledBasis_");

@@ -100,7 +100,7 @@ namespace FROSch {
             ArrayView<const SC> values;
             subdomainMatrix->getGlobalRowView(subdomainMap->getGlobalElement(i),indices,values);
 
-            LO size = indices.size();
+            const auto size = indices.size();
             if (size>0) {
                 Array<GO> indicesLocal;
                 Array<SC> valuesLocal;
@@ -134,7 +134,7 @@ namespace FROSch {
 
 // "fillComplete" is quite expensive, and it seem to be cheaper to replace values each row at a time
 #if 0 //defined(HAVE_XPETRA_TPETRA)
-        if (globalMatrix->getRowMap()->lib() == UseTpetra) 
+        if (globalMatrix->getRowMap()->lib() == UseTpetra)
         {
             // NOTE: this fillComplete is expensive on GPUs
             subdomainMatrix->fillComplete();
@@ -300,7 +300,7 @@ namespace FROSch {
         RCP<Map<LO,GO,NO> > mapJLocal = MapFactory<LO,GO,NO>::Build(k->getRowMap()->lib(),INVALID,indJ.size(),0,k->getRowMap()->getComm());
         RCP<const Map<LO,GO,NO> > colMap = k->getColMap();
 #if defined(HAVE_XPETRA_TPETRA)
-        if (k->getRowMap()->lib() == UseTpetra) 
+        if (k->getRowMap()->lib() == UseTpetra)
         {
             using crsmat_type  = typename Matrix<SC,LO,GO,NO>::local_matrix_type;
             using graph_type   = typename crsmat_type::StaticCrsGraphType;
