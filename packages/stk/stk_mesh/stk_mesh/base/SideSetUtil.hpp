@@ -13,7 +13,7 @@ namespace stk { namespace mesh { class MetaData; } }
 namespace stk { namespace mesh { class Part; } }
 namespace stk { namespace mesh { class Selector; } }
 namespace stk { namespace mesh { struct Entity; } }
-namespace stk { namespace mesh { struct SideSet; } }
+namespace stk { namespace mesh { class SideSet; } }
 
 namespace stk {
 namespace mesh {
@@ -42,6 +42,8 @@ std::pair<bool,bool> is_positive_sideset_face_polarity(const stk::mesh::BulkData
 std::vector<const stk::mesh::Part*> get_sideset_io_parts(const stk::mesh::BulkData& bulkData, stk::mesh::Entity face);
 
 void toggle_sideset_updaters(stk::mesh::BulkData& bulk, bool flag);
+
+stk::mesh::EntityRank get_sideset_rank(const stk::mesh::SideSet& sset);
 
 }
 }

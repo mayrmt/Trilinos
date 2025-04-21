@@ -34,9 +34,7 @@
 
 #include <stk_util/stk_config.h>
 #include "stk_unit_test_utils/getOption.h"
-#ifdef STK_HAVE_KOKKOS
 #include <Kokkos_Core.hpp>
-#endif
 #include <gtest/gtest.h>                // for InitGoogleTest, etc
 #ifdef STK_HAVE_STKNGP_TEST
 #include <stk_ngp_test/ngp_test.hpp>
@@ -60,9 +58,7 @@ int main(int argc, char **argv)
 #ifdef STK_HAVE_STKNGP_TEST
     ngp_testing::NgpTestEnvironment testEnv(&argc, argv);
 #else
-#ifdef STK_HAVE_KOKKOS
     Kokkos::initialize(argc, argv);
-#endif
     testing::InitGoogleTest(&argc, argv);
 #endif
 
@@ -74,7 +70,7 @@ int main(int argc, char **argv)
     stk::unit_test_util::create_parallel_output(procId);
     if (stk::unit_test_util::has_option("-stk_coupling_version")) {
       int version = stk::unit_test_util::get_command_line_option("-stk_coupling_version", -1);
-      stk::util::impl::set_coupling_version(version);
+      stk::util::impl::set_coupling_version(stk::EnvData::instance().parallel_comm(), version);
     }
 #endif
 
@@ -83,9 +79,7 @@ int main(int argc, char **argv)
     testEnv.finalize();
 #else
     returnVal = RUN_ALL_TESTS();
-#ifdef STK_HAVE_KOKKOS
     Kokkos::finalize();
-#endif
 #endif
   }
 

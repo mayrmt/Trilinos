@@ -16,6 +16,8 @@
 #include <stk_util/parallel/ParallelReduce.hpp>
 #include <stk_util/parallel/DeviceAwareMPI.hpp>
 #include "stk_unit_test_utils/TextMesh.hpp"
+#include <stk_unit_test_utils/stk_mesh_fixtures/HexFixture.hpp>
+#include "../UnitTestUtils.hpp"
 
 namespace  {
 
@@ -32,11 +34,11 @@ void check_field_on_device(stk::mesh::NgpMesh &mesh,
                                  });
 }
 
-class NgpParallelSum : public stk::unit_test_util::simple_fields::MeshFixture
+class NgpParallelSum : public stk::unit_test_util::MeshFixture
 {
 protected:
   NgpParallelSum()
-    : stk::unit_test_util::simple_fields::MeshFixture(3)
+    : stk::unit_test_util::MeshFixture(3)
   {
   }
 
@@ -85,11 +87,11 @@ protected:
   }
 };
 
-class NgpCopyOwnedToShared : public stk::unit_test_util::simple_fields::MeshFixture
+class NgpCopyOwnedToShared : public stk::unit_test_util::MeshFixture
 {
 protected:
   NgpCopyOwnedToShared()
-    : stk::unit_test_util::simple_fields::MeshFixture(3)
+    : stk::unit_test_util::MeshFixture(3)
   {
   }
 
@@ -115,11 +117,11 @@ protected:
 
 };
 
-class NgpCommunicateFieldData : public stk::unit_test_util::simple_fields::MeshFixture
+class NgpCommunicateFieldData : public stk::unit_test_util::MeshFixture
 {
 protected:
   NgpCommunicateFieldData()
-    : stk::unit_test_util::simple_fields::MeshFixture(3)
+    : stk::unit_test_util::MeshFixture(3)
   {
   }
 
@@ -163,7 +165,7 @@ void build_homogeneous_mesh_hex_proc_0(stk::mesh::BulkData & bulk)
     1,0,1, 1,1,1, 1,2,1
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_hex_proc_1(stk::mesh::BulkData & bulk)
@@ -178,7 +180,7 @@ void build_homogeneous_mesh_hex_proc_1(stk::mesh::BulkData & bulk)
     1,0,1, 1,1,1, 1,2,1
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_hex_both_procs(stk::mesh::BulkData & bulk)
@@ -193,7 +195,7 @@ void build_homogeneous_mesh_hex_both_procs(stk::mesh::BulkData & bulk)
     1,0,1, 1,1,1, 1,2,1
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_tet_proc_0(stk::mesh::BulkData & bulk)
@@ -207,7 +209,7 @@ void build_homogeneous_mesh_tet_proc_0(stk::mesh::BulkData & bulk)
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_tet_proc_1(stk::mesh::BulkData & bulk)
@@ -221,7 +223,7 @@ void build_homogeneous_mesh_tet_proc_1(stk::mesh::BulkData & bulk)
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_tet_both_procs(stk::mesh::BulkData & bulk)
@@ -235,7 +237,7 @@ void build_homogeneous_mesh_tet_both_procs(stk::mesh::BulkData & bulk)
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_pyramid_proc_0(stk::mesh::BulkData & bulk)
@@ -249,7 +251,7 @@ void build_homogeneous_mesh_pyramid_proc_0(stk::mesh::BulkData & bulk)
     0,1,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_pyramid_proc_1(stk::mesh::BulkData & bulk)
@@ -263,7 +265,7 @@ void build_homogeneous_mesh_pyramid_proc_1(stk::mesh::BulkData & bulk)
     0,1,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_homogeneous_mesh_pyramid_both_procs(stk::mesh::BulkData & bulk)
@@ -277,7 +279,7 @@ void build_homogeneous_mesh_pyramid_both_procs(stk::mesh::BulkData & bulk)
     0,1,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 NGP_TEST_F(NgpParallelSum, homogeneousMesh_hexProc0)
@@ -361,7 +363,7 @@ void build_heterogeneous_mesh_no_empty_blocks(stk::mesh::BulkData & bulk)
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_heterogeneous_mesh_pyramid_only_on_proc_1(stk::mesh::BulkData & bulk)
@@ -381,7 +383,7 @@ void build_heterogeneous_mesh_pyramid_only_on_proc_1(stk::mesh::BulkData & bulk)
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 void build_heterogeneous_mesh_elem_types_all_on_one_proc(stk::mesh::BulkData & bulk)
@@ -401,7 +403,7 @@ void build_heterogeneous_mesh_elem_types_all_on_one_proc(stk::mesh::BulkData & b
     0,0,2, 0,1,2, 0,2,2
   };
 
-  stk::unit_test_util::simple_fields::setup_text_mesh(bulk, stk::unit_test_util::simple_fields::get_full_text_mesh_desc(meshDesc, coordinates));
+  stk::unit_test_util::setup_text_mesh(bulk, stk::unit_test_util::get_full_text_mesh_desc(meshDesc, coordinates));
 }
 
 
@@ -595,7 +597,7 @@ NGP_TEST_F(NgpCommunicateFieldData, simpleVersion_takesBulkData_noSyncToDeviceAf
   check_field_on_device<double>(ngpMesh, deviceUserField, deviceGoldValues);
 }
 
-NGP_TEST_F(NgpParallelSum, DISABLED_DeviceMPIVersion)
+NGP_TEST_F(NgpParallelSum, DeviceMPIVersion)
 {
   if (!stk::have_device_aware_mpi()) { GTEST_SKIP(); }
 
@@ -614,7 +616,7 @@ NGP_TEST_F(NgpParallelSum, DISABLED_DeviceMPIVersion)
   stk::mesh::NgpField<double> & deviceUserField = stk::mesh::get_updated_ngp_field<double>(userField);
   stk::mesh::NgpField<double> & deviceGoldValues = stk::mesh::get_updated_ngp_field<double>(goldValues);
 
-  stk::mesh::parallel_sum_device_mpi<double>(ngpMesh, std::vector<stk::mesh::NgpField<double>*>{&deviceUserField});
+  stk::mesh::parallel_sum(ngpMesh, std::vector<stk::mesh::NgpField<double>*>{&deviceUserField});
 
   check_field_on_device<double>(ngpMesh, deviceUserField, deviceGoldValues);
 }
@@ -628,10 +630,9 @@ NGP_TEST_F(NgpParallelSum, Performance)
   if (stk::parallel_machine_rank(MPI_COMM_WORLD) == 0)
   {
     std::shared_ptr<stk::mesh::BulkData> bulk = stk::mesh::MeshBuilder(MPI_COMM_SELF).create();
-    bulk->mesh_meta_data().use_simple_fields();
 
     std::string meshSpecDefault = "10x10x10";
-    std::string meshSpec = stk::unit_test_util::simple_fields::get_command_line_option("-m", meshSpecDefault);
+    std::string meshSpec = stk::unit_test_util::get_command_line_option("-m", meshSpecDefault);
 
     stk::io::fill_mesh("generated:" + meshSpec, *bulk);
     stk::io::write_mesh(serialMeshName, *bulk);
@@ -655,10 +656,10 @@ NGP_TEST_F(NgpParallelSum, Performance)
   stk::mesh::NgpField<double> & deviceGoldValues = stk::mesh::get_updated_ngp_field<double>(goldValues);
 
   const bool useSimpleDefault = true;
-  bool useSimple = stk::unit_test_util::simple_fields::get_command_line_option("-s", useSimpleDefault);
+  bool useSimple = stk::unit_test_util::get_command_line_option("-s", useSimpleDefault);
 
   const int numIterationsDefault = 1;
-  int numIterations = stk::unit_test_util::simple_fields::get_command_line_option("-n", numIterationsDefault);
+  int numIterations = stk::unit_test_util::get_command_line_option("-n", numIterationsDefault);
 
   for (int i = 0; i < numIterations; ++i) {
     if (useSimple) {
@@ -675,7 +676,7 @@ NGP_TEST_F(NgpParallelSum, Performance)
     }
     else {
       const double startTime = stk::wall_time();
-      stk::mesh::parallel_sum_device_mpi<double>(ngpMesh, std::vector<stk::mesh::NgpField<double>*>{&deviceUserField});
+      stk::mesh::parallel_sum(ngpMesh, std::vector<stk::mesh::NgpField<double>*>{&deviceUserField});
       const double stopTime = stk::wall_time();
       const double localTime = stopTime - startTime;
       double globalTime = 0;
@@ -692,6 +693,168 @@ NGP_TEST_F(NgpParallelSum, Performance)
   }
 
   unlink(serialMeshName.c_str());
+}
+
+class NgpParallelSumIncludingGhosts : public ::ngp_testing::Test {
+protected:
+  NgpParallelSumIncludingGhosts() { }
+
+  void setup_mesh()
+  {
+    bulkPtr = stk::mesh::MeshBuilder(stk::parallel_machine_world())
+                                .set_spatial_dimension(3)
+                                .set_aura_option(stk::mesh::BulkData::NO_AUTO_AURA)
+                                .set_symmetric_ghost_info(true)
+                                .create();
+    stk::mesh::MetaData& meta = bulkPtr->mesh_meta_data();
+    nodeField = &meta.declare_field<double>(stk::topology::NODE_RANK, "myNodeField");
+    stk::mesh::put_field_on_mesh(*nodeField, meta.universal_part(), nullptr);
+    size_t nx=1, ny=1, nz=3;
+    stk::mesh::fixtures::HexFixture::fill_mesh(nx,ny,nz, *bulkPtr);
+  }
+
+  void init_shared_field_values()
+  {
+    stk::mesh::Selector shared = bulkPtr->mesh_meta_data().globally_shared_part();
+    const stk::mesh::BucketVector& sharedNodeBuckets = bulkPtr->get_buckets(stk::topology::NODE_RANK, shared);
+    for(const stk::mesh::Bucket* bptr : sharedNodeBuckets) {
+      for(stk::mesh::Entity node : *bptr) {
+        double* value = stk::mesh::field_data(*nodeField, node);
+        *value = bulkPtr->identifier(node);
+      }
+    }
+  }
+
+  void check_shared_field_values_on_host(stk::mesh::EntityId skipID = 0)
+  {
+    stk::mesh::Selector shared = bulkPtr->mesh_meta_data().globally_shared_part();
+    std::vector<int> shProcs;
+    constexpr double tol = std::numeric_limits<double>::epsilon();
+    const stk::mesh::BucketVector& sharedNodeBuckets = bulkPtr->get_buckets(stk::topology::NODE_RANK, shared);
+    for(const stk::mesh::Bucket* bptr : sharedNodeBuckets) {
+      for(stk::mesh::Entity node : *bptr) {
+        if (skipID != 0 && bulkPtr->identifier(node) == skipID) {
+          continue;
+        }
+        bulkPtr->comm_shared_procs(node, shProcs);
+        const double* value = stk::mesh::field_data(*nodeField, node);
+        const double expectedValue = (shProcs.size()+1) * bulkPtr->identifier(node);
+        EXPECT_NEAR(expectedValue, *value, tol)<<bulkPtr->entity_key(node);
+      }
+    }
+  }
+
+  std::shared_ptr<stk::mesh::BulkData> bulkPtr;
+  stk::mesh::Field<double>* nodeField = nullptr;
+};
+
+NGP_TEST_F(NgpParallelSumIncludingGhosts, hex_3procs_1ghostNode_host)
+{
+  stk::ParallelMachine comm = stk::parallel_machine_world();
+  const int numProcs = stk::parallel_machine_size(comm);
+  if(numProcs != 3) { GTEST_SKIP(); }
+  const int myProc = stk::parallel_machine_rank(comm);
+
+  setup_mesh();
+  stk::mesh::unit_test::proc0_ghost_node1_to_proc1_and_proc2(*bulkPtr);
+  init_shared_field_values();
+
+  stk::mesh::Entity node1 = bulkPtr->get_entity(stk::topology::NODE_RANK, 1);
+  EXPECT_TRUE(bulkPtr->is_valid(node1));
+
+  double* value = stk::mesh::field_data(*nodeField, node1);
+  const double initValue = (myProc+1);
+  *value = initValue;
+
+  stk::mesh::parallel_sum_including_ghosts(*bulkPtr, {nodeField});
+
+  constexpr double tolerance = 1.e-9;
+
+  double expectedValue = 0;
+  for(int p=0; p<numProcs; ++p) {
+    expectedValue += (p+1);
+  }
+
+  check_shared_field_values_on_host();
+
+  value = stk::mesh::field_data(*nodeField, node1);
+  EXPECT_NEAR(*value, expectedValue, tolerance);
+}
+
+NGP_TEST_F(NgpParallelSumIncludingGhosts, hex_3procs_1ghostNode_device)
+{
+  stk::ParallelMachine comm = stk::parallel_machine_world();
+  const int numProcs = stk::parallel_machine_size(comm);
+  if(numProcs != 3) { GTEST_SKIP(); }
+  const int myProc = stk::parallel_machine_rank(comm);
+
+  setup_mesh();
+  stk::mesh::unit_test::proc0_ghost_node1_to_proc1_and_proc2(*bulkPtr);
+  init_shared_field_values();
+
+  stk::mesh::Entity node1 = bulkPtr->get_entity(stk::topology::NODE_RANK, 1);
+  EXPECT_TRUE(bulkPtr->is_valid(node1));
+
+  double* value = stk::mesh::field_data(*nodeField, node1);
+  const double initValue = (myProc+1);
+  *value = initValue;
+
+  stk::mesh::NgpMesh & ngpMesh = stk::mesh::get_updated_ngp_mesh(*bulkPtr);
+  stk::mesh::NgpField<double> & ngpNodeField = stk::mesh::get_updated_ngp_field<double>(*nodeField);
+  std::vector<stk::mesh::NgpField<double>*> ngpFields = {&ngpNodeField};
+  stk::mesh::parallel_sum_including_ghosts(ngpMesh, ngpFields);
+
+  nodeField->sync_to_host();
+
+  constexpr double tolerance = 1.e-9;
+
+  double expectedValue = 0;
+  for(int p=0; p<numProcs; ++p) {
+    expectedValue += (p+1);
+  }
+
+  check_shared_field_values_on_host();
+
+  value = stk::mesh::field_data(*nodeField, node1);
+  EXPECT_NEAR(*value, expectedValue, tolerance);
+}
+
+NGP_TEST_F(NgpParallelSumIncludingGhosts, hex_3procs_node5_sharedAndGhosted_device)
+{
+  stk::ParallelMachine comm = stk::parallel_machine_world();
+  const int numProcs = stk::parallel_machine_size(comm);
+  if(numProcs != 3) { GTEST_SKIP(); }
+  const int myProc = stk::parallel_machine_rank(comm);
+
+  setup_mesh();
+  stk::mesh::unit_test::proc0_ghost_node5_to_proc2(*bulkPtr);
+  init_shared_field_values();
+
+  stk::mesh::Entity node5 = bulkPtr->get_entity(stk::topology::NODE_RANK, 5);
+  EXPECT_TRUE(bulkPtr->is_valid(node5));
+
+  if (myProc == 2) {
+    double* value = stk::mesh::field_data(*nodeField, node5);
+    const double initValue = 5;
+    *value = initValue;
+  }
+
+  stk::mesh::NgpMesh & ngpMesh = stk::mesh::get_updated_ngp_mesh(*bulkPtr);
+  stk::mesh::NgpField<double> & ngpNodeField = stk::mesh::get_updated_ngp_field<double>(*nodeField);
+  std::vector<stk::mesh::NgpField<double>*> ngpFields = {&ngpNodeField};
+  stk::mesh::parallel_sum_including_ghosts(ngpMesh, ngpFields);
+
+  nodeField->sync_to_host();
+
+  stk::mesh::EntityId nodeToSkip = 5;
+  check_shared_field_values_on_host(nodeToSkip);
+
+  constexpr double tolerance = 1.e-9;
+
+  double expectedValue = numProcs*5;
+
+  double* value = stk::mesh::field_data(*nodeField, node5);
+  EXPECT_NEAR(*value, expectedValue, tolerance);
 }
 
 }

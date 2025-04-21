@@ -1,43 +1,10 @@
 // @HEADER
-// ************************************************************************
-//
+// *****************************************************************************
 //                           Intrepid2 Package
-//                 Copyright (2007) Sandia Corporation
 //
-// Under terms of Contract DE-AC04-94AL85000, there is a non-exclusive
-// license for use of this work by or on behalf of the U.S. Government.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-// 1. Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the Corporation nor the names of the
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY SANDIA CORPORATION "AS IS" AND ANY
-// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL SANDIA CORPORATION OR THE
-// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Questions? Contact Mauro Perego  (mperego@sandia.gov) or
-//                    Nate Roberts  (nvrober@sandia.gov)
-//
-// ************************************************************************
+// Copyright 2007 NTESS and the Intrepid2 contributors.
+// SPDX-License-Identifier: BSD-3-Clause
+// *****************************************************************************
 // @HEADER
 
 /** \file   Intrepid2_PyramidCoords.hpp
@@ -174,6 +141,42 @@ namespace Intrepid2
     dx_int2 = dx_eseas / 2.;
     dy_int2 = dy_eseas / 2.;
     dz_int2 = dz_eseas - dx_int2 - dy_int2;
+  }
+
+/// Transforms values in H(div) computed on the ESEAS pyramid to values on the Intrepid2 H(div) pyramid.  It is allowed for outputs to be in the same memory location as inputs (e.g. xcomp_int2 may refer to the same location as xcomp_eseas).
+  template<class OutputScalar>
+  KOKKOS_INLINE_FUNCTION
+  void transformHDIVFromESEASPyramidValue(      OutputScalar &xcomp_int2,        OutputScalar &ycomp_int2,        OutputScalar &zcomp_int2,
+                                          const OutputScalar &xcomp_eseas, const OutputScalar &ycomp_eseas, const OutputScalar &zcomp_eseas)
+  {
+    /*
+     Jacobian of ESEAS ref to Intrepid2 ref pyramid:
+     [ 2 0 1 ]
+     [ 0 2 1 ] =: DF_C
+     [ 0 0 1 ]
+     
+     Determinant of this is 4; so the transformation matrix is 1/4 * DF_C
+     */
+    xcomp_int2 = 0.5 * xcomp_eseas + 0.25 * zcomp_eseas;
+    ycomp_int2 = 0.5 * ycomp_eseas + 0.25 * zcomp_eseas;
+    zcomp_int2 =                     0.25 * zcomp_eseas;
+  }
+
+/// Transforms values in H(div) computed on the ESEAS pyramid to values on the Intrepid2 H(div) pyramid.
+  template<class OutputScalar>
+  KOKKOS_INLINE_FUNCTION
+  void transformHDIVFromESEASPyramidDIV(      OutputScalar &div_int2,
+                                        const OutputScalar &div_eseas)
+  {
+    /*
+     Jacobian of ESEAS ref to Intrepid2 ref pyramid:
+     [ 2 0 1 ]
+     [ 0 2 1 ] =: DF_C
+     [ 0 0 1 ]
+     
+     Determinant of this is 4; so the transformation for divergence is multiplication by 0.25.
+     */
+    div_int2 = 0.25 * div_eseas;
   }
 } // end namespace Intrepid2
 

@@ -1,42 +1,10 @@
 // @HEADER
-// ************************************************************************
-//
+// *****************************************************************************
 //                           MiniTensor Package
-//                 Copyright (2016) Sandia Corporation
 //
-// Under terms of Contract DE-AC04-94AL85000, there is a non-exclusive
-// license for use of this work by or on behalf of the U.S. Government.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-// 1. Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the Corporation nor the names of the
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY SANDIA CORPORATION "AS IS" AND ANY
-// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL SANDIA CORPORATION OR THE
-// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Questions: Alejandro Mota (amota@sandia.gov)
-//
-// ************************************************************************
+// Copyright 2016 NTESS and the MiniTensor contributors.
+// SPDX-License-Identifier: BSD-3-Clause
+// *****************************************************************************
 // @HEADER
 
 #include <ctime>
@@ -913,7 +881,7 @@ TEST(MiniTensor, LeftPolarDecomposition)
   Tensor<Real> const X(1.1, 0.2, 0.0, 0.2, 1.0, 0.0, 0.0, 0.0, 1.2);
 
   Real const
-  c = sqrt(2.0) / 2.0;
+  c = std::sqrt(2.0) / 2.0;
 
   Tensor<Real> const Y(c, -c, 0.0, c, c, 0.0, 0.0, 0.0, 1.0);
 
@@ -933,6 +901,41 @@ TEST(MiniTensor, LeftPolarDecomposition)
   ASSERT_LE(error_y, machine_epsilon<Real>());
 }
 
+TEST(MiniTensor, Log)
+{
+  Tensor<Real>
+  I = identity<Real>(3);
+
+  Tensor<Real>
+  r = sqrt(I);
+
+  Real const
+  error_sqrt = norm(r - I);
+
+  ASSERT_LE(error_sqrt, machine_epsilon<Real>());
+
+  Tensor<Real>
+  i = log(I);
+
+  Real const
+  error_I = norm(i) / norm(I);
+
+  ASSERT_LE(error_I, machine_epsilon<Real>());
+
+  Tensor<Real>
+  F(-0.16777540263807703,   1.2889030921484332,    0.09298444646599896,
+    -0.718646161000825955,  0.02120989960140519,  -0.039217352050714333,
+    -0.073802850037046119,  0.036685806156092855,  1.0456450021778172);
+
+  Tensor<Real>
+  f = exp(log(F));
+
+  Real const
+  error_F = norm(f - F);
+
+  ASSERT_LE(error_F, 8 * machine_epsilon<Real>());
+}
+
 TEST(MiniTensor, LogRotation)
 {
   // Identity rotation
@@ -949,7 +952,7 @@ TEST(MiniTensor, LogRotation)
 
   // Pi / 4 rotation about Z.
   Real const
-  c = sqrt(2.0) / 2.0;
+  c = std::sqrt(2.0) / 2.0;
 
   Tensor<Real> const R(c, -c, 0.0, c, c, 0.0, 0.0, 0.0, 1.0);
 
@@ -1023,7 +1026,7 @@ TEST(MiniTensor, PolarLeftLog)
   Tensor<Real> const X = exp(x);
 
   Real const
-  c = sqrt(2.0) / 2.0;
+  c = std::sqrt(2.0) / 2.0;
 
   Tensor<Real> const Y(c, -c, 0.0, c, c, 0.0, 0.0, 0.0, 1.0);
 
@@ -1062,9 +1065,9 @@ TEST(MiniTensor, SVD2x2)
 
   Real const psi = 2.0;
 
-  Real const s0 = sqrt(3.0);
+  Real const s0 = std::sqrt(3.0);
 
-  Real const s1 = sqrt(2.0);
+  Real const s1 = std::sqrt(2.0);
 
   Real const cl = cos(phi);
 
@@ -1490,7 +1493,7 @@ TEST(MiniTensor, TemplateMetaProgramming)
     double_string = "double";
 
     std::string const
-    fad_string = "Sacado::Fad::DFad< double >";
+    fad_string = "Sacado::Fad::Exp::GeneralFad< double >";
 
     std::string
     type_string =

@@ -34,6 +34,7 @@
 
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/BulkData.hpp>
+#include <stk_mesh/base/Relation.hpp>
 #include <stk_topology/topology.hpp>
 #include <stk_util/parallel/Parallel.hpp>
 #include <stk_util/parallel/CommSparse.hpp>
@@ -79,16 +80,14 @@ void pack_induced_memberships_for_entities_less_than_element_rank(
                 CommBuffer & buf = comm.send_buffer(owner);
 
                 unsigned tmp = induced.size();
-
                 buf.pack<stk::mesh::EntityKey>(info.key);
                 buf.pack<unsigned>(tmp);
-
                 for(unsigned ord : induced) {
                     buf.pack<unsigned>(ord);
-                }    
+                }
             }    
         }    
-    }    
+    }
 }
 
 void append_parts_from_sharer_to_owner(const BulkData& bulk,
@@ -202,7 +201,6 @@ void unpack_induced_parts_from_sharers(OrdinalVector& induced_parts,
         stk::mesh::EntityKey key;
         buf.unpack<stk::mesh::EntityKey>(key);
         STK_ThrowAssertMsg(key == expected_key, "Program error. Contact sierra-help@sandia.gov for support. Key mismatch!" << key << " not same as " << expected_key);
-
         buf.unpack<unsigned>(count);
         for(unsigned j = 0; j < count; ++j)
         {
@@ -357,7 +355,7 @@ void communicate_shared_entity_info(const BulkData &mesh,
   });
 }
 
-void communicateSharingInfoToProcsThatShareEntity(const int numProcs, const int myProcId, stk::CommSparse& commStage2, stk::mesh::EntityToDependentProcessorsMap &entityKeySharing)
+void communicateSharingInfoToProcsThatShareEntity(const int /*numProcs*/, const int myProcId, stk::CommSparse& commStage2, stk::mesh::EntityToDependentProcessorsMap &entityKeySharing)
 {
     for(int phase = 0; phase < 2; ++phase)
     {    

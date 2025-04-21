@@ -80,6 +80,7 @@ public:
   std::pair<int,bool> insert( const EntityKey & key, const EntityCommInfo & val, int owner );
   bool erase( const EntityKey & key, const EntityCommInfo & val );
   bool erase( const EntityKey & key, const Ghosting & ghost );
+  bool erase( const EntityKey & key, unsigned ghostID );
   bool comm_clear_ghosting(const EntityKey & key );
   bool comm_clear(const EntityKey & key );
 
@@ -149,7 +150,7 @@ void unpack_entity_info(
   EntityKey      & key ,
   int            & owner ,
   PartVector     & parts ,
-  std::vector<Relation> & relations );
+  RelationVector& relations );
 
 void pack_sideset_info(BulkData& mesh, CommBuffer & buf, const Entity entity);
 

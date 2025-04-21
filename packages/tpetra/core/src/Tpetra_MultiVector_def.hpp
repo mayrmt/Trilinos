@@ -1,40 +1,10 @@
 // @HEADER
-// ***********************************************************************
-//
+// *****************************************************************************
 //          Tpetra: Templated Linear Algebra Services Package
-//                 Copyright (2008) Sandia Corporation
 //
-// Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
-// the U.S. Government retains certain rights in this software.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-// 1. Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the Corporation nor the names of the
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY SANDIA CORPORATION "AS IS" AND ANY
-// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL SANDIA CORPORATION OR THE
-// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// ************************************************************************
+// Copyright 2008 NTESS and the Tpetra contributors.
+// SPDX-License-Identifier: BSD-3-Clause
+// *****************************************************************************
 // @HEADER
 
 // clang-format off
@@ -893,7 +863,7 @@ namespace Tpetra {
       (LDA < lclNumRows, std::invalid_argument, "Map and DualView origView "
        "do not match.  LDA = " << LDA << " < this->getLocalLength() = " <<
        lclNumRows << ".  origView.extent(0) = " << origView.extent(0)
-       << ", origView.stride(1) = " << origView.d_view.stride(1) << ".");
+       << ", origView.stride(1) = " << origView.view_device().stride(1) << ".");
 
     if (whichVectors.size () == 1) {
       // If whichVectors has only one entry, we don't need to bother
@@ -1079,10 +1049,10 @@ namespace Tpetra {
   aliases(const MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>& other) const
   {
     //Don't actually get a view, just get pointers.
-    auto thisData = view_.getDualView().h_view.data();
-    auto otherData = other.view_.getDualView().h_view.data();
-    size_t thisSpan = view_.getDualView().h_view.span();
-    size_t otherSpan = other.view_.getDualView().h_view.span();
+    auto thisData = view_.getDualView().view_host().data();
+    auto otherData = other.view_.getDualView().view_host().data();
+    size_t thisSpan = view_.getDualView().view_host().span();
+    size_t otherSpan = other.view_.getDualView().view_host().span();
     return (otherData <= thisData && thisData < otherData + otherSpan)
       || (thisData <= otherData && otherData < thisData + thisSpan);
   }
@@ -1316,7 +1286,7 @@ namespace Tpetra {
         Kokkos::DualView<size_t*, device_type> tmpTgt ("tgtWhichVecs", numCols);
         tmpTgt.modify_host ();
         for (size_t j = 0; j < numCols; ++j) {
-          tmpTgt.h_view(j) = j;
+          tmpTgt.view_host()(j) = j;
         }
         if (! copyOnHost) {
           tmpTgt.sync_device ();
@@ -1341,7 +1311,7 @@ namespace Tpetra {
         Kokkos::DualView<size_t*, device_type> tmpSrc ("srcWhichVecs", numCols);
         tmpSrc.modify_host ();
         for (size_t j = 0; j < numCols; ++j) {
-          tmpSrc.h_view(j) = j;
+          tmpSrc.view_host()(j) = j;
         }
         if (! copyOnHost) {
           tmpSrc.sync_device ();
@@ -1825,7 +1795,7 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
     // - CombineMode needs to be INSERT.
     // - The number of vectors needs to be 1, otherwise we need to
     //   reorder the received data.
-    if ((dual_view_type::impl_dualview_is_single_device::value ||
+    if ((std::is_same_v<typename dual_view_type::t_dev::device_type, typename dual_view_type::t_host::device_type> ||
          (Details::Behavior::assumeMpiIsGPUAware () && !this->need_sync_device()) ||
          (!Details::Behavior::assumeMpiIsGPUAware () && !this->need_sync_host())) &&
         areRemoteLIDsContiguous &&
@@ -1834,7 +1804,7 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
         (newSize > 0)) {
 
       size_t offset = getLocalLength () - newSize;
-      reallocated = this->imports_.d_view.data() != view_.getDualView().d_view.data() + offset;
+      reallocated = this->imports_.view_device().data() != view_.getDualView().view_device().data() + offset;
       if (reallocated) {
         typedef std::pair<size_t, size_t> range_type;
         this->imports_ = DV(view_.getDualView(),
@@ -1894,8 +1864,8 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
   bool
   MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::
   importsAreAliased() {
-    return (this->imports_.d_view.data() + this->imports_.d_view.extent(0) ==
-            view_.getDualView().d_view.data() + view_.getDualView().d_view.extent(0));
+    return (this->imports_.view_device().data() + this->imports_.view_device().extent(0) ==
+            view_.getDualView().view_device().data() + view_.getDualView().view_device().extent(0));
   }
 
 
@@ -2915,7 +2885,7 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
     k_alphas_type k_alphas ("alphas::tmp", numAlphas);
     k_alphas.modify_host ();
     for (size_t i = 0; i < numAlphas; ++i) {
-      k_alphas.h_view(i) = static_cast<impl_scalar_type> (alphas[i]);
+      k_alphas.view_host()(i) = static_cast<impl_scalar_type> (alphas[i]);
     }
     k_alphas.sync_device ();
     // Invoke the scale() overload that takes a device View of coefficients.
@@ -3738,22 +3708,20 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
     {
       const size_t newSize = X.imports_.extent (0) / numCols;
       const size_t offset = jj*newSize;
-      auto newImports = X.imports_;
-      newImports.d_view = subview (X.imports_.d_view,
+      auto device_view = subview (X.imports_.view_device(),
                                    range_type (offset, offset+newSize));
-      newImports.h_view = subview (X.imports_.h_view,
+      auto host_view = subview (X.imports_.view_host(),
                                    range_type (offset, offset+newSize));
-      this->imports_ = newImports;
+      this->imports_ = decltype(X.imports_)(device_view, host_view);
     }
     {
       const size_t newSize = X.exports_.extent (0) / numCols;
       const size_t offset = jj*newSize;
-      auto newExports = X.exports_;
-      newExports.d_view = subview (X.exports_.d_view,
+      auto device_view = subview (X.exports_.view_device(),
                                    range_type (offset, offset+newSize));
-      newExports.h_view = subview (X.exports_.h_view,
+      auto host_view = subview (X.exports_.view_host(),
                                    range_type (offset, offset+newSize));
-      this->exports_ = newExports;
+      this->exports_ = decltype(X.exports_)(device_view, host_view);
     }
     // These two DualViews already either have the right number of
     // entries, or zero entries.  This means that we don't need to
@@ -4518,7 +4486,7 @@ void MultiVector<Scalar, LocalOrdinal, GlobalOrdinal, Node>::copyAndPermute(
     const size_t col = isConstantStride () ? j : whichVectors_[j];
     col_dual_view_type X_col =
       Kokkos::subview (view_, Kokkos::ALL (), col);
-    return Kokkos::Compat::persistingView (X_col.d_view);
+    return Kokkos::Compat::persistingView (X_col.view_device());
   }
 
   template <class Scalar, class LocalOrdinal, class GlobalOrdinal, class Node>

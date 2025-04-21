@@ -1,8 +1,9 @@
 
+#include <stk_util/stk_config.h>
+#include <Kokkos_Core.hpp>
 #include <iostream>
 #include <stk_util/parallel/Parallel.hpp>
 #include <stk_util/command_line/CommandLineParserParallel.hpp>
-#include <stk_unit_test_utils/CommandLineArgs.hpp>
 
 #include "src/test_stk_coupling.hpp"
 #include "src/test_stk_search.hpp"
@@ -12,9 +13,11 @@
 
 int main(int argc, char** argv)
 {
-  if (MPI_SUCCESS != MPI_Init(&argc, &argv)) {
-    std::cout << "MPI_Init failed." << std::endl;
-    return -1;
+  stk::parallel_machine_init(&argc, &argv);
+
+  Kokkos::initialize(argc, argv);
+  if (stk::parallel_machine_rank(MPI_COMM_WORLD) == 0) {
+    std::cout << "Kokkos::DefaultExecutionSpace: " << Kokkos::DefaultExecutionSpace::device_type::execution_space::name() << std::endl;
   }
 
   const bool proc0 = (stk::parallel_machine_rank(MPI_COMM_WORLD) == 0);
@@ -50,7 +53,9 @@ int main(int argc, char** argv)
 
   test_stk_lib::test_stk_tools();
 
-  MPI_Finalize();
+  Kokkos::finalize();
+
+  stk::parallel_machine_finalize();
 
   if (proc0) {
     std::cout << "... exiting." << std::endl;

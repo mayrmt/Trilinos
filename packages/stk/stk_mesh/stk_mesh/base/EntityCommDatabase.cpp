@@ -137,7 +137,7 @@ void unpack_entity_info(
   EntityKey        & key ,
   int              & owner ,
   PartVector       & parts ,
-  std::vector<Relation> & relations )
+  RelationVector& relations )
 {
   unsigned nparts = 0 ;
   unsigned nrel = 0 ;
@@ -302,7 +302,7 @@ void pack_field_values(const BulkData& mesh, CommBuffer & buf , Entity entity )
 }
 
 bool unpack_field_values(const BulkData& mesh,
-                         CommBuffer & buf , Entity entity , std::ostream & error_msg )
+                         CommBuffer & buf , Entity entity , [[maybe_unused]] std::ostream & error_msg )
 {
     if (!mesh.is_field_updating_active()) {
         return true;
@@ -475,12 +475,17 @@ bool EntityCommDatabase::erase( const EntityKey & key, const EntityCommInfo & va
 
 bool EntityCommDatabase::erase( const EntityKey & key, const Ghosting & ghost )
 {
+  return erase(key, ghost.ordinal());
+}
+
+bool EntityCommDatabase::erase( const EntityKey & key, unsigned ghostID )
+{
   if (!cached_find(key)) return false;
 
   int entityCommIndex = m_last_lookup->second;
 
   bool result = m_entityCommInfo.remove_items_if(entityCommIndex, [&](const EntityCommInfo& info) {
-    if (info.ghost_id == ghost.ordinal()) {
+    if (info.ghost_id == ghostID) {
       if (m_comm_map_change_listener != nullptr) {
         m_comm_map_change_listener->removedGhost(key, info.ghost_id, info.proc);
       }
